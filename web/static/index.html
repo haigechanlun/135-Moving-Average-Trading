@@ -93,6 +93,11 @@
                 <span>MACD</span>
               </label>
               <label class="toggle-control">
+                <input id="showVol" type="checkbox" checked />
+                <span class="toggle"></span>
+                <span>波动率</span>
+              </label>
+              <label class="toggle-control">
                 <input id="allPatterns" type="checkbox" />
                 <span class="toggle"></span>
                 <span>全部形态</span>
@@ -115,7 +120,7 @@
               <div class="chart-pane">
                 <div id="chart" class="chart"></div>
               </div>
-              <div id="macdPane" class="macd-pane">
+              <div id="macdPane" class="sub-pane">
                 <div class="macd-legend">
                   <span>MACD</span>
                   <span class="macd-dif">DIF <b id="legendMacdDif">—</b></span>
@@ -124,6 +129,15 @@
                 </div>
                 <div id="macdChart" class="chart"></div>
               </div>
+              <div id="volPane" class="sub-pane">
+                <div class="macd-legend">
+                  <span>ATR%</span>
+                  <span class="vol-hot">当前 <b id="legendAtrPct">—</b></span>
+                  <span class="vol-base">常态 <b id="legendAtrMa">—</b></span>
+                </div>
+                <div id="volChart" class="chart"></div>
+              </div>
+              <div id="axisTime" class="axis-time hidden"></div>
             </div>
             <div id="chartLoading" class="chart-loading">
               <span class="spinner"></span>

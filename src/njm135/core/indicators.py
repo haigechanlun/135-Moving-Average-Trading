@@ -112,3 +112,36 @@ def add_bollinger(
     out["boll_upper"] = mid + num_std * std
     out["boll_lower"] = mid - num_std * std
     return out
+
+
+def true_range(bars: pd.DataFrame) -> pd.Series:
+    prev = bars["close"].shift(1)
+    return pd.concat(
+        [
+            bars["high"] - bars["low"],
+            (bars["high"] - prev).abs(),
+            (bars["low"] - prev).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+
+
+def add_volatility(
+    bars: pd.DataFrame,
+    *,
+    window: int = 14,
+    baseline: int = 55,
+) -> pd.DataFrame:
+    """ATR% = ATR(window) / 收盘价 × 100。
+
+    柱高表示**最近已经走了多大振幅**（占价格的百分比），不是对未来暴涨暴跌的预测。
+    ``atr_pct_ma`` 是 ATR% 自己的均线，用来判断当前波动高于还是低于这段行情的常态。
+    """
+    out = bars.copy()
+    close = out["close"].astype(float).replace(0, pd.NA)
+    atr = true_range(out).rolling(window=window, min_periods=window).mean()
+    atr_pct = atr / close * 100.0
+    out["atr"] = atr
+    out["atr_pct"] = atr_pct
+    out["atr_pct_ma"] = sma(atr_pct, baseline)
+    return out

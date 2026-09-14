@@ -26,8 +26,23 @@ def test_chart_payload_reuses_core_signals(monkeypatch) -> None:
         assert len(series) == bars_count
         assert series[0]["time"] == payload["candles"][0]["time"]
         assert any("value" in point for point in series)
+    assert len(payload["vol"]["atrPct"]) == bars_count
+    assert payload["vol"]["atrPct"][0]["time"] == payload["candles"][0]["time"]
     assert payload["meta"]["bars"] == 140
     assert payload["meta"]["signal"] in {"buy", "sell", "hold"}
+    assert "forming" in payload["meta"]
+
+
+def test_latest_bar_endpoint(monkeypatch) -> None:
+    bars = make_demo_bars(n=12)
+    monkeypatch.setattr(web_app, "fetch_binance_klines", lambda *_args, **_kwargs: bars)
+    client = TestClient(web_app.app)
+    payload = client.get("/api/bar?symbol=BTCUSDT&interval=1h").json()
+    last = bars.iloc[-1]
+    assert payload["candle"]["close"] == float(last["close"])
+    assert payload["volume"]["time"] == payload["candle"]["time"]
+    assert payload["forming"] is False
+    assert client.get("/api/bar?symbol=BTCUSDT&interval=15m").status_code == 400
 
 
 def test_web_routes_validate_chart_query() -> None:

@@ -3,9 +3,10 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from njm135.core.indicators import add_bollinger, add_ma_system, add_macd, golden_cross, sma
+from njm135.core.indicators import add_bollinger, add_ma_system, add_macd, add_volatility, golden_cross, sma
+from njm135.core.params import PatternParams
 from njm135.core.patterns import detect_patterns
-from njm135.core.strategy import StrategyConfig, generate_signals
+from njm135.core.strategy import StrategyConfig, annotate, generate_signals
 from njm135.backtest import analyze
 
 
@@ -27,6 +28,16 @@ def test_macd_and_bollinger_columns() -> None:
     assert macd["macd_hist"].notna().sum() > 0
     last = boll.iloc[-1]
     assert last["boll_upper"] > last["boll_mid"] > last["boll_lower"]
+
+
+def test_volatility_atr_pct() -> None:
+    close = pd.Series(range(1, 81), dtype=float)
+    bars = pd.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close})
+    vol = add_volatility(bars)
+    last = vol.iloc[-1]
+    assert last["atr_pct"] > 0
+    assert last["atr_pct_ma"] > 0
+    assert last["atr"] == pytest.approx(2.0, rel=0.05)
 
 
 def test_golden_cross() -> None:
@@ -68,14 +79,50 @@ def test_hongxing_chuqiang_on_constructed_series() -> None:
     down = [30.0 - 0.2 * i for i in range(70)]
     flat = [down[-1]] * 16
     rebound = down[-1] * 1.04
-    close = pd.Series(down + flat + [rebound])
+    close = pd.Series(down + flat + [rebound, rebound * 1.01, rebound * 1.02])
     open_ = close.copy()
-    open_.iloc[-1] = close.iloc[-2]
+    open_.iloc[-3] = close.iloc[-4]
     bars = pd.DataFrame(
         {"open": open_, "high": close * 1.01, "low": close * 0.99, "close": close}
     )
-    framed = detect_patterns(add_ma_system(bars))
+    framed = detect_patterns(
+        add_ma_system(bars),
+        PatternParams(hongxing_confirm_bars=3),
+    )
+    assert not bool(framed["hongxing_chuqiang"].iloc[-3])
+    assert not bool(framed["hongxing_chuqiang"].iloc[-2])
     assert bool(framed["hongxing_chuqiang"].iloc[-1])
+
+
+def test_pattern_detection_is_causal_and_events_do_not_repeat() -> None:
+    close = pd.Series([20.0] * 70 + list(range(21, 121)), dtype=float)
+    bars = pd.DataFrame(
+        {
+            "open": close.shift(1).fillna(close.iloc[0]),
+            "high": close * 1.02,
+            "low": close * 0.98,
+            "close": close,
+            "volume": 1_000_000,
+        }
+    )
+    full = annotate(bars)
+    pattern_cols = [
+        col
+        for col in full.columns
+        if col not in bars.columns
+        and col not in {"ma13_up", "ma34_up", "ma55_up", "bull_align", "bear_align", "buy", "sell"}
+        and not col.startswith("ma")
+        and not col.startswith("break_ma")
+    ]
+    for col in pattern_cols:
+        assert not (full[col] & full[col].shift(1, fill_value=False)).any(), col
+
+    # Prefix-by-prefix result must match the same timestamp in the full run.
+    # This catches accidental shift(-N), centered windows, or future backfilling.
+    for end in range(60, len(bars), 17):
+        prefix = annotate(bars.iloc[:end])
+        for col in pattern_cols + ["buy", "sell"]:
+            assert bool(prefix[col].iloc[-1]) == bool(full[col].iloc[end - 1]), (end, col)
 
 
 def test_break_ma_is_a_state_not_a_crossing() -> None:

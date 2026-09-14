@@ -50,6 +50,13 @@ def _vol_ratio(bars: pd.DataFrame, window: int) -> pd.Series:
     return bars["volume"] / ma.replace(0, pd.NA)
 
 
+def _first_of_run(condition: pd.Series) -> pd.Series:
+    """连续满足条件时只保留第一根，避免同一形态重复记账。"""
+    current = condition.fillna(False).astype(bool)
+    previous = current.shift(1, fill_value=False)
+    return current & ~previous
+
+
 def detect_patterns(bars: pd.DataFrame, params: PatternParams | None = None) -> pd.DataFrame:
     """要求已含 ``ma13`` / ``ma34`` / ``ma55``。突破一律收盘确认。"""
     for col in ("open", "high", "low", "close", "ma13", "ma34", "ma55"):
@@ -81,7 +88,7 @@ def detect_patterns(bars: pd.DataFrame, params: PatternParams | None = None) -> 
 
     # --- 底部 ---
     recently_deep = _recent((c / ma13 - 1.0) < -p.deep_below_13, p.downtrend_lookback)
-    out["hongxing_chuqiang"] = (
+    hongxing_candidate = (
         (ma55 > ma34)
         & (ma34 > ma13)
         & (_flat(ma13, p.flatten_lookback, p.flatten_pct) | _hook_up(ma13, p.flatten_lookback))
@@ -89,6 +96,14 @@ def detect_patterns(bars: pd.DataFrame, params: PatternParams | None = None) -> 
         & yang
         & recently_deep
     )
+    # 候选出现后等待 N 根收盘均守住 MA13，信号标在确认根。只引用当前和历史，
+    # 因此是延迟确认而不是把未来结果回填到候选根。
+    confirm_bars = max(1, p.hongxing_confirm_bars)
+    above_13 = c > ma13
+    stayed_above = (
+        above_13.rolling(confirm_bars, min_periods=confirm_bars).min().fillna(0).astype(bool)
+    )
+    out["hongxing_chuqiang"] = hongxing_candidate.shift(confirm_bars - 1, fill_value=False) & stayed_above
 
     small_yang = yang & ret.between(0.0, p.small_yang_max)
     out["mayi_shangshu"] = (
@@ -239,4 +254,10 @@ def detect_patterns(bars: pd.DataFrame, params: PatternParams | None = None) -> 
     ]
     for col in bool_cols:
         out[col] = out[col].fillna(False).astype(bool)
+
+    # 形态是事件；连续多根满足只应记录一次。跌破均线则必须保留为状态，
+    # 因为持仓可能在线下建立，后续每根都需要提供离场条件。
+    for col in bool_cols:
+        if not col.startswith("break_ma"):
+            out[col] = _first_of_run(out[col])
     return out

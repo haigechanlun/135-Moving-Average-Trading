@@ -31,8 +31,12 @@ const els = {
   showMa: $("#showMa"),
   showBoll: $("#showBoll"),
   showMacd: $("#showMacd"),
+  showVol: $("#showVol"),
   macdPane: $("#macdPane"),
   macdChart: $("#macdChart"),
+  volPane: $("#volPane"),
+  volChart: $("#volChart"),
+  axisTime: $("#axisTime"),
   signalBadge: $("#signalBadge"),
   signalTitle: $("#signalTitle"),
   signalDescription: $("#signalDescription"),
@@ -54,6 +58,11 @@ const formatPrice = (value) => {
 const formatChange = (value) => {
   const n = Number(value || 0) * 100;
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+};
+
+const formatAtrPct = (value) => {
+  if (value == null || !Number.isFinite(Number(value))) return "—";
+  return `${Number(value).toFixed(2)}%`;
 };
 
 function sortedSymbols(items) {
@@ -91,6 +100,21 @@ const toast = (message) => {
   toast.timer = window.setTimeout(() => els.toast.classList.remove("show"), 2200);
 };
 
+const formatBarTime = (time) => {
+  const ts = typeof time === "number" ? time * 1000 : Date.parse(String(time));
+  if (!Number.isFinite(ts)) return "—";
+  const withClock = state.interval === "1h" || state.interval === "4h";
+  return new Date(ts).toLocaleString("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: withClock ? "2-digit" : undefined,
+    minute: withClock ? "2-digit" : undefined,
+    hour12: false,
+  });
+};
+
 const chartOptions = {
   layout: {
     background: { color: "#0b0f16" },
@@ -104,7 +128,7 @@ const chartOptions = {
   },
   crosshair: {
     mode: LightweightCharts.CrosshairMode.Normal,
-    vertLine: { color: "#67748b88", style: 2, labelBackgroundColor: "#334155" },
+    vertLine: { color: "#67748b88", style: 2, labelVisible: true, labelBackgroundColor: "#334155" },
     horzLine: { color: "#67748b88", style: 2, labelBackgroundColor: "#334155" },
   },
   rightPriceScale: {
@@ -121,13 +145,21 @@ const chartOptions = {
     barSpacing: 7,
     minBarSpacing: 2,
   },
-  localization: { locale: "zh-CN" },
+  localization: {
+    locale: "zh-CN",
+    timeFormatter: (time) => formatBarTime(time),
+  },
 };
 
 const chart = LightweightCharts.createChart(els.chart, chartOptions);
 const macdChart = LightweightCharts.createChart(els.macdChart, {
   ...chartOptions,
   rightPriceScale: { borderColor: "#273143", scaleMargins: { top: 0.18, bottom: 0.08 }, minimumWidth: 72 },
+  timeScale: { ...chartOptions.timeScale, visible: false },
+});
+const volChart = LightweightCharts.createChart(els.volChart, {
+  ...chartOptions,
+  rightPriceScale: { borderColor: "#273143", scaleMargins: { top: 0.16, bottom: 0.08 }, minimumWidth: 72 },
   timeScale: { ...chartOptions.timeScale, visible: true },
 });
 
@@ -178,6 +210,12 @@ const macdDifSeries = macdChart.addLineSeries({
 const macdDeaSeries = macdChart.addLineSeries({
   color: "#4ea1ff", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "DEA",
 });
+const volHistSeries = volChart.addHistogramSeries({
+  lastValueVisible: false, priceLineVisible: false, title: "ATR%",
+});
+const volMaSeries = volChart.addLineSeries({
+  color: "#5eead4", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "ATR%均",
+});
 
 const storedFlag = (key, fallback = true) => {
   const value = localStorage.getItem(`njm135.show.${key}`);
@@ -186,6 +224,7 @@ const storedFlag = (key, fallback = true) => {
 els.showMa.checked = storedFlag("ma");
 els.showBoll.checked = storedFlag("boll");
 els.showMacd.checked = storedFlag("macd");
+els.showVol.checked = storedFlag("vol");
 
 new ResizeObserver((entries) => {
   const box = entries[0].contentRect;
@@ -195,18 +234,25 @@ new ResizeObserver((entries) => {
   const box = entries[0].contentRect;
   macdChart.applyOptions({ width: box.width, height: box.height });
 }).observe(els.macdChart);
+new ResizeObserver((entries) => {
+  const box = entries[0].contentRect;
+  volChart.applyOptions({ width: box.width, height: box.height });
+}).observe(els.volChart);
 
 let syncingRange = false;
-const bindRangeSync = (source, target) => {
+const bindRangeSync = (source) => {
   source.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-    if (syncingRange || !range || !els.showMacd.checked) return;
+    if (syncingRange || !range) return;
     syncingRange = true;
-    target.timeScale().setVisibleLogicalRange(range);
+    for (const item of [chart, macdChart, volChart]) {
+      if (item !== source) item.timeScale().setVisibleLogicalRange(range);
+    }
     syncingRange = false;
   });
 };
-bindRangeSync(chart, macdChart);
-bindRangeSync(macdChart, chart);
+bindRangeSync(chart);
+bindRangeSync(macdChart);
+bindRangeSync(volChart);
 
 const mapPoints = (points) => new Map((points || []).map((item) => [String(item.time), item.value]));
 
@@ -224,9 +270,53 @@ function setLegend(candle, time) {
   $("#legendMacdDif").textContent = formatPrice(state.macdMaps?.dif.get(key));
   $("#legendMacdDea").textContent = formatPrice(state.macdMaps?.dea.get(key));
   $("#legendMacdHist").textContent = formatPrice(state.macdMaps?.hist.get(key));
+  $("#legendAtrPct").textContent = formatAtrPct(state.volMaps?.atrPct.get(key));
+  $("#legendAtrMa").textContent = formatAtrPct(state.volMaps?.baseline.get(key));
+}
+
+let syncingCrosshair = false;
+
+function updateAxisTime(param) {
+  const label = els.axisTime;
+  if (!label) return;
+  if (!param?.time || param.point == null) {
+    label.classList.add("hidden");
+    return;
+  }
+  const stack = label.parentElement;
+  const width = stack?.clientWidth || els.chart.clientWidth;
+  const x = Math.max(48, Math.min(param.point.x, width - 80));
+  label.textContent = formatBarTime(param.time);
+  label.style.left = `${x}px`;
+  label.classList.remove("hidden");
+}
+
+function priceForPane(kind, time) {
+  const key = String(time);
+  if (kind === "macd") return Number(state.macdMaps?.dif.get(key) || 0);
+  if (kind === "vol") return Number(state.volMaps?.atrPct.get(key) || 0);
+  const candle = state.data?.candles.find((item) => item.time === time);
+  return candle ? candle.close : 0;
+}
+
+function syncCrosshair(source, param) {
+  if (syncingCrosshair) return;
+  syncingCrosshair = true;
+  const panes = [
+    { kind: "main", chart, series: candleSeries, visible: true },
+    { kind: "macd", chart: macdChart, series: macdDifSeries, visible: els.showMacd.checked },
+    { kind: "vol", chart: volChart, series: volHistSeries, visible: els.showVol.checked },
+  ];
+  for (const pane of panes) {
+    if (pane.kind === source || !pane.visible) continue;
+    if (!param.time) pane.chart.clearCrosshairPosition();
+    else pane.chart.setCrosshairPosition(priceForPane(pane.kind, param.time), param.time, pane.series);
+  }
+  syncingCrosshair = false;
 }
 
 const moveLegend = (param) => {
+  updateAxisTime(param);
   if (!param.time || !param.seriesData) {
     if (state.data?.candles.length) {
       const last = state.data.candles.at(-1);
@@ -237,14 +327,25 @@ const moveLegend = (param) => {
   const candle = param.seriesData.get(candleSeries) || state.data?.candles.find((item) => item.time === param.time);
   setLegend(candle, param.time);
 };
-chart.subscribeCrosshairMove(moveLegend);
-macdChart.subscribeCrosshairMove(moveLegend);
+chart.subscribeCrosshairMove((param) => {
+  moveLegend(param);
+  syncCrosshair("main", param);
+});
+macdChart.subscribeCrosshairMove((param) => {
+  moveLegend(param);
+  syncCrosshair("macd", param);
+});
+volChart.subscribeCrosshairMove((param) => {
+  moveLegend(param);
+  syncCrosshair("vol", param);
+});
 
 function applyOverlays(data = state.data) {
   if (!data) return;
   const showMa = els.showMa.checked;
   const showBoll = els.showBoll.checked;
   const showMacd = els.showMacd.checked;
+  const showVol = els.showVol.checked;
   ma13Series.setData(showMa ? data.ma["13"] : []);
   ma34Series.setData(showMa ? data.ma["34"] : []);
   ma55Series.setData(showMa ? data.ma["55"] : []);
@@ -254,23 +355,35 @@ function applyOverlays(data = state.data) {
   document.querySelectorAll(".legend-ma").forEach((el) => el.classList.toggle("hidden", !showMa));
   document.querySelectorAll(".legend-boll").forEach((el) => el.classList.toggle("hidden", !showBoll));
   els.macdPane.classList.toggle("hidden", !showMacd);
-  chart.applyOptions({ timeScale: { visible: !showMacd, borderColor: "#273143" } });
+  els.volPane.classList.toggle("hidden", !showVol);
+  chart.applyOptions({ timeScale: { visible: !showMacd && !showVol, borderColor: "#273143" } });
+  macdChart.applyOptions({ timeScale: { visible: showMacd && !showVol, borderColor: "#273143" } });
+  volChart.applyOptions({ timeScale: { visible: showVol, borderColor: "#273143" } });
   if (showMacd) {
     macdHistSeries.setData(data.macd.hist);
     macdDifSeries.setData(data.macd.dif);
     macdDeaSeries.setData(data.macd.dea);
-    requestAnimationFrame(() => {
-      const range = chart.timeScale().getVisibleLogicalRange();
-      if (range) macdChart.timeScale().setVisibleLogicalRange(range);
-    });
   } else {
     macdHistSeries.setData([]);
     macdDifSeries.setData([]);
     macdDeaSeries.setData([]);
   }
+  if (showVol) {
+    volHistSeries.setData(data.vol.atrPct);
+    volMaSeries.setData(data.vol.baseline);
+  } else {
+    volHistSeries.setData([]);
+    volMaSeries.setData([]);
+  }
+  requestAnimationFrame(() => {
+    const range = chart.timeScale().getVisibleLogicalRange();
+    if (!range) return;
+    if (showMacd) macdChart.timeScale().setVisibleLogicalRange(range);
+    if (showVol) volChart.timeScale().setVisibleLogicalRange(range);
+  });
 }
 
-function renderChart(data) {
+function renderChart(data, { preserveView = false } = {}) {
   candleSeries.setData(data.candles);
   volumeSeries.setData(data.volume);
   candleSeries.setMarkers(els.patterns.checked ? data.patternMarkers : data.strategyMarkers);
@@ -287,9 +400,14 @@ function renderChart(data) {
     dea: mapPoints(data.macd.dea),
     hist: mapPoints(data.macd.hist),
   };
+  state.volMaps = {
+    atrPct: mapPoints(data.vol.atrPct),
+    baseline: mapPoints(data.vol.baseline),
+  };
   applyOverlays(data);
   const last = data.candles.at(-1);
   setLegend(last, last.time);
+  if (preserveView) return;
   chart.timeScale().fitContent();
   if (data.candles.length > 260) {
     chart.timeScale().setVisibleLogicalRange({ from: data.candles.length - 260, to: data.candles.length + 5 });
@@ -304,7 +422,9 @@ function renderInstrument(data) {
   els.change.textContent = formatChange(data.meta.change);
   els.change.className = data.meta.change > 0 ? "positive" : data.meta.change < 0 ? "negative" : "neutral";
   els.signalCount.textContent = data.strategyMarkers.length;
-  els.barCount.textContent = `${data.meta.bars} 根已完成 K 线`;
+  els.barCount.textContent = data.meta.forming
+    ? `${data.meta.bars} 根（含进行中）`
+    : `${data.meta.bars} 根已完成 K 线`;
   els.lastUpdate.textContent = new Date(data.meta.lastTime * 1000).toLocaleDateString("zh-CN", {
     month: "2-digit", day: "2-digit", hour: ["1h", "4h"].includes(data.interval) ? "2-digit" : undefined,
   });
@@ -340,11 +460,14 @@ function renderSignalLog(markers) {
   }).join("");
 }
 
-async function loadChart({ notify = false } = {}) {
+async function loadChart({ notify = false, silent = false } = {}) {
   const requestId = ++state.requestId;
-  els.loading.classList.remove("hidden");
-  els.error.classList.add("hidden");
-  els.refresh.classList.add("spinning");
+  state.chartPending = true;
+  if (!silent) {
+    els.loading.classList.remove("hidden");
+    els.error.classList.add("hidden");
+    els.refresh.classList.add("spinning");
+  }
   try {
     const query = new URLSearchParams({
       symbol: state.symbol,
@@ -356,8 +479,9 @@ async function loadChart({ notify = false } = {}) {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail || "行情请求失败");
     if (requestId !== state.requestId) return;
+    const preserveView = silent && Boolean(state.data);
     state.data = payload;
-    renderChart(payload);
+    renderChart(payload, { preserveView });
     renderInstrument(payload);
     renderSignalLog(payload.strategyMarkers);
     document.title = `${state.symbol.replace("USDT", "")} ${state.interval} · 135 Signal Desk`;
@@ -365,18 +489,67 @@ async function loadChart({ notify = false } = {}) {
     localStorage.setItem("njm135.interval", state.interval);
     localStorage.setItem("njm135.exitMa", state.exitMa);
     els.marketStatus.classList.remove("offline");
+    startLiveBar();
     if (notify) toast("行情已更新");
   } catch (error) {
     if (requestId !== state.requestId) return;
-    els.errorMessage.textContent = error.message;
-    els.error.classList.remove("hidden");
+    if (!silent) {
+      els.errorMessage.textContent = error.message;
+      els.error.classList.remove("hidden");
+    }
     els.marketStatus.classList.add("offline");
   } finally {
+    // 静默刷新也要收起遮罩：它会顶掉正在进行的整图请求，否则那次请求永远没人收尾。
     if (requestId === state.requestId) {
+      state.chartPending = false;
       els.loading.classList.add("hidden");
       els.refresh.classList.remove("spinning");
     }
   }
+}
+
+function applyLiveBar(bar) {
+  if (!state.data?.candles.length) return;
+  if (bar.symbol !== state.symbol || bar.interval !== state.interval) return;
+  const last = state.data.candles.at(-1);
+  const wasForming = Boolean(state.data.meta.forming);
+  if (bar.candle.time < last.time) return;
+  if (bar.candle.time > last.time || (wasForming && !bar.forming)) {
+    loadChart({ silent: true });
+    return;
+  }
+  state.data.candles[state.data.candles.length - 1] = bar.candle;
+  state.data.volume[state.data.volume.length - 1] = bar.volume;
+  state.data.meta.lastClose = bar.lastClose;
+  state.data.meta.change = bar.change;
+  state.data.meta.forming = bar.forming;
+  state.data.meta.lastTime = bar.candle.time;
+  candleSeries.update(bar.candle);
+  volumeSeries.update(bar.volume);
+  els.lastPrice.textContent = formatPrice(bar.lastClose);
+  els.change.textContent = formatChange(bar.change);
+  els.change.className = bar.change > 0 ? "positive" : bar.change < 0 ? "negative" : "neutral";
+}
+
+async function pollLatestBar() {
+  // 整图请求还在路上时不要插队，否则拿到的最新一根会和旧 state.data 对不上。
+  if (state.pollingBar || state.chartPending || document.hidden || !state.data) return;
+  state.pollingBar = true;
+  try {
+    const query = new URLSearchParams({ symbol: state.symbol, interval: state.interval });
+    const response = await fetch(`/api/bar?${query}`);
+    if (!response.ok) return;
+    applyLiveBar(await response.json());
+  } catch {
+    // 实时刷新失败不影响已加载的图
+  } finally {
+    state.pollingBar = false;
+  }
+}
+
+function startLiveBar() {
+  window.clearInterval(state.barTimer);
+  state.barTimer = window.setInterval(pollLatestBar, 2000);
 }
 
 function renderSymbols(filter = "") {
@@ -457,8 +630,12 @@ const persistOverlay = (key, checked) => {
 els.showMa.addEventListener("change", () => persistOverlay("ma", els.showMa.checked));
 els.showBoll.addEventListener("change", () => persistOverlay("boll", els.showBoll.checked));
 els.showMacd.addEventListener("change", () => persistOverlay("macd", els.showMacd.checked));
+els.showVol.addEventListener("change", () => persistOverlay("vol", els.showVol.checked));
 els.refresh.addEventListener("click", () => loadChart({ notify: true }));
 $("#retryButton").addEventListener("click", () => loadChart());
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) pollLatestBar();
+});
 
 loadSymbols();
 loadChart();

@@ -14,6 +14,8 @@ class PatternParams:
 
     confirm: Confirm = "close"
 
+    # 可用于研究延迟确认；实测 BTC 日线 3 根确认只会晚买，默认仍在当根收盘确认。
+    hongxing_confirm_bars: int = 1
     flatten_lookback: int = 2
     flatten_pct: float = 0.005
 

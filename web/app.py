@@ -21,8 +21,8 @@ from njm135.market.binance import fetch_binance_klines
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
-ALLOWED_INTERVALS = {"1h", "4h", "1d", "1w"}
-INTERVAL_SECONDS = {"1h": 3600, "4h": 4 * 3600, "1d": 24 * 3600, "1w": 7 * 24 * 3600}
+ALLOWED_INTERVALS = {"30m", "1h", "4h", "1d", "1w"}
+INTERVAL_SECONDS = {"30m": 1800, "1h": 3600, "4h": 4 * 3600, "1d": 24 * 3600, "1w": 7 * 24 * 3600}
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,20}USDT$")
 EXCLUDED_BASES = {
     "USDT", "USDC", "FDUSD", "BUSD", "TUSD", "DAI", "USDE", "USDS", "PYUSD",
@@ -203,7 +203,7 @@ def _parse_symbol(symbol: str) -> str:
 
 def _require_interval(interval: str) -> str:
     if interval not in ALLOWED_INTERVALS:
-        raise HTTPException(status_code=400, detail="周期仅支持 1h / 4h / 1d / 1w")
+        raise HTTPException(status_code=400, detail="周期仅支持 30m / 1h / 4h / 1d / 1w")
     return interval
 
 

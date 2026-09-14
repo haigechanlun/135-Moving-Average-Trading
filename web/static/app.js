@@ -104,7 +104,7 @@ const toast = (message) => {
 const formatBarTime = (time) => {
   const ts = typeof time === "number" ? time * 1000 : Date.parse(String(time));
   if (!Number.isFinite(ts)) return "—";
-  const withClock = state.interval === "1h" || state.interval === "4h";
+  const withClock = ["30m", "1h", "4h"].includes(state.interval);
   return new Date(ts).toLocaleString("zh-CN", {
     timeZone: "Asia/Shanghai",
     year: "numeric",
@@ -433,7 +433,7 @@ function renderInstrument(data) {
     ? `${data.meta.bars} 根（含进行中）`
     : `${data.meta.bars} 根已完成 K 线`;
   els.lastUpdate.textContent = new Date(data.meta.lastTime * 1000).toLocaleDateString("zh-CN", {
-    month: "2-digit", day: "2-digit", hour: ["1h", "4h"].includes(data.interval) ? "2-digit" : undefined,
+    month: "2-digit", day: "2-digit", hour: ["30m", "1h", "4h"].includes(data.interval) ? "2-digit" : undefined,
   });
 
   const signal = data.meta.signal;

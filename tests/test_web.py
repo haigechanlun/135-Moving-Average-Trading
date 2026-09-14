@@ -43,6 +43,7 @@ def test_latest_bar_endpoint(monkeypatch) -> None:
     assert payload["volume"]["time"] == payload["candle"]["time"]
     assert payload["forming"] is False
     assert client.get("/api/bar?symbol=BTCUSDT&interval=15m").status_code == 400
+    assert client.get("/api/bar?symbol=BTCUSDT&interval=30m").status_code == 200
 
 
 def test_web_routes_validate_chart_query() -> None:
@@ -54,6 +55,7 @@ def test_web_routes_validate_chart_query() -> None:
     assert response.status_code == 400
     response = client.get("/api/chart?symbol=BTCUSDT&interval=15m")
     assert response.status_code == 400
+    assert "30m" in web_app.ALLOWED_INTERVALS
     assert "1h" in web_app.ALLOWED_INTERVALS
 
 

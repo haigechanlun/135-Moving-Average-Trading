@@ -187,7 +187,7 @@ No Gate account? [Sign up](https://www.gatewebsite.com/share/VVNAULXZAG).
 `web/` is a separate chart UI. The backend reuses `njm135.core`; the browser does not reimplement the strategy.
 
 - All tradeable Binance USDT perps; sort by 24h volume or % change
-- 1h / 4h / 1d / 1w; forming bar included, last bar polled every 2s
+- 30m / 1h / 4h / 1d / 1w; forming bar included, last bar polled every 2s
 - Candles + volume; MA / Bollinger / MACD / ATR% toggles; invert the main scale
 - Strategy arrows, recent signals, optional full classic-pattern overlay
 - Exit MA: 13 / 34 / 55

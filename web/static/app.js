@@ -1,6 +1,7 @@
 /* global LightweightCharts */
 
 const state = {
+  language: localStorage.getItem("njm135.language") === "zh-CN" ? "zh-CN" : "en",
   symbol: localStorage.getItem("njm135.symbol") || "BTCUSDT",
   interval: localStorage.getItem("njm135.interval") || "1d",
   exitMa: localStorage.getItem("njm135.exitMa") || "55",
@@ -46,8 +47,187 @@ const els = {
   barCount: $("#barCount"),
   signalTable: $("#signalTable"),
   marketStatus: $("#marketStatus"),
+  languageSwitch: $("#languageSwitch"),
   toast: $("#toast"),
 };
+
+const translations = {
+  en: {
+    brandTagline: "13 · 34 · 55 MA monitor",
+    market: "MARKET",
+    signals: "SIGNALS",
+    refresh: "Refresh market data",
+    perpetualContracts: "Perpetuals",
+    search: "Search BTC, ETH...",
+    sortVolume: "Sort by volume",
+    sortChange: "Sort by 24h change",
+    volume: "Volume",
+    perpetual: "PERP",
+    interval: "Candlestick interval",
+    interval30m: "30m", interval1h: "1h", interval4h: "4h", interval1d: "1D", interval1w: "1W",
+    exitMa: "Exit MA",
+    volatility: "Volatility",
+    invert: "Invert",
+    allPatterns: "All patterns",
+    histogram: "HIST",
+    current: "Current",
+    baseline: "Baseline",
+    loading: "Loading market data and 135 signals",
+    loadFailed: "Could not load market data",
+    tryAgain: "Please try again",
+    reload: "Reload",
+    currentSignal: "Current signal",
+    chartSignals: "Chart signals",
+    visibleSignals: "Strategy entries and exits in view",
+    dataStatus: "Data status",
+    recentSignals: "Recent signals",
+    buy: "Buy",
+    sell: "Sell",
+    watch: "Watch",
+    noSignal: "No trading signal",
+    strategySignal: "135 strategy signal",
+    waitingClose: "Waiting for the latest candle to close",
+    confirmedOn: "Signal confirmed at the close on {date}",
+    barsForming: "{count} candles (forming candle included)",
+    barsClosed: "{count} closed candles",
+    noSignals: "No strategy signals in this range",
+    signal: "135 signal",
+    requestFailed: "Market data request failed",
+    updated: "Market data updated",
+    allPatternsShown: "Showing all 135 patterns",
+    strategyOnly: "Showing strategy entries and exits only",
+    scaleInverted: "Main price scale inverted",
+    scaleRestored: "Main price scale restored",
+    noSymbols: "No matching symbols",
+    symbolsFailed: "Could not load the symbol list",
+  },
+  "zh-CN": {
+    brandTagline: "13 · 34 · 55 均线观察台",
+    market: "市场",
+    signals: "信号",
+    refresh: "刷新行情",
+    perpetualContracts: "永续合约",
+    search: "搜索 BTC、ETH...",
+    sortVolume: "按成交额排序",
+    sortChange: "按24h涨跌幅排序",
+    volume: "成交额",
+    perpetual: "永续",
+    interval: "K线周期",
+    interval30m: "30分钟", interval1h: "1小时", interval4h: "4小时", interval1d: "日线", interval1w: "周线",
+    exitMa: "离场线",
+    volatility: "波动率",
+    invert: "翻转",
+    allPatterns: "全部形态",
+    histogram: "柱",
+    current: "当前",
+    baseline: "常态",
+    loading: "正在加载行情与 135 信号",
+    loadFailed: "行情加载失败",
+    tryAgain: "请稍后重试",
+    reload: "重新加载",
+    currentSignal: "当前信号",
+    chartSignals: "图表信号",
+    visibleSignals: "当前可视范围内的策略买卖点",
+    dataStatus: "数据状态",
+    recentSignals: "最近信号",
+    buy: "买入",
+    sell: "卖出",
+    watch: "观察",
+    noSignal: "暂无交易信号",
+    strategySignal: "135 策略信号",
+    waitingClose: "等待最新一根 K 线收盘确认",
+    confirmedOn: "信号已在 {date} 收盘确认",
+    barsForming: "{count} 根（含进行中）",
+    barsClosed: "{count} 根已完成 K 线",
+    noSignals: "当前范围内没有策略信号",
+    signal: "135 信号",
+    requestFailed: "行情请求失败",
+    updated: "行情已更新",
+    allPatternsShown: "已显示全部 135 形态",
+    strategyOnly: "仅显示策略买卖信号",
+    scaleInverted: "已翻转主图坐标",
+    scaleRestored: "已恢复主图坐标",
+    noSymbols: "没有匹配的币种",
+    symbolsFailed: "币种列表加载失败",
+  },
+};
+
+const patternNames = {
+  "红杏出墙": "Red apricot over the wall",
+  "蚂蚁上树": "Ants climbing a tree",
+  "黑客点击": "Hacker click",
+  "红衣侠女": "Lady in red",
+  "海底捞月": "Moon from the sea",
+  "均线互换": "MA swap",
+  "三线推进": "Three-line push",
+  "梅开二度": "Plum blossoms twice",
+  "走四方": "Walking the square",
+  "浪子回头": "Prodigal returns",
+  "一枝独秀": "One branch stands out",
+  "独上高楼": "Alone on the high tower",
+  "见好就收": "Take profit and leave",
+  "一阳穿三线": "One green through three MAs",
+  "一阴破三线": "One red through three MAs",
+  "一箭穿心": "Arrow through the heart",
+  "分道扬镳": "Bearish MA split",
+};
+
+const t = (key, values = {}) => {
+  let text = translations[state.language][key] || key;
+  Object.entries(values).forEach(([name, value]) => {
+    text = text.replace(`{${name}}`, value);
+  });
+  return text;
+};
+const locale = () => state.language === "zh-CN" ? "zh-CN" : "en-US";
+const translatePattern = (name) => state.language === "en" ? (patternNames[name] || name) : name;
+const translateMarkerText = (text = "") => text.split(" · ").map((part) => {
+  if (state.language === "zh-CN") return part;
+  const breakMa = part.match(/^跌破(MA\d+)$/);
+  if (breakMa) return `Below ${breakMa[1]}`;
+  if (part === "买入") return t("buy");
+  if (part === "卖出") return t("sell");
+  return translatePattern(part);
+}).join(" · ");
+const localizedMarkers = (markers) => markers.map((marker) => ({
+  ...marker,
+  text: translateMarkerText(marker.text),
+}));
+
+function applyLanguage() {
+  document.documentElement.lang = state.language;
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    element.textContent = t(element.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((element) => {
+    const value = t(element.dataset.i18nTitle);
+    element.title = value;
+    if (element.hasAttribute("aria-label")) element.setAttribute("aria-label", value);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+    element.placeholder = t(element.dataset.i18nPlaceholder);
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+  });
+  els.languageSwitch.textContent = state.language === "en" ? "中文" : "EN";
+  els.languageSwitch.setAttribute(
+    "aria-label",
+    state.language === "en" ? "切换到中文" : "Switch to English",
+  );
+  chart.applyOptions({ localization: { locale: locale(), timeFormatter: (time) => formatBarTime(time) } });
+  macdChart.applyOptions({ localization: { locale: locale(), timeFormatter: (time) => formatBarTime(time) } });
+  volChart.applyOptions({ localization: { locale: locale(), timeFormatter: (time) => formatBarTime(time) } });
+  if (state.data) {
+    renderChart(state.data, { preserveView: true });
+    renderInstrument(state.data);
+    renderSignalLog(state.data.strategyMarkers);
+    renderSymbols(els.search.value);
+  }
+  document.title = state.data
+    ? `${state.symbol.replace("USDT", "")} ${state.interval} · 135 Signal Desk`
+    : "135 Signal Desk";
+}
 
 const formatPrice = (value) => {
   if (value == null || !Number.isFinite(Number(value))) return "—";
@@ -105,7 +285,7 @@ const formatBarTime = (time) => {
   const ts = typeof time === "number" ? time * 1000 : Date.parse(String(time));
   if (!Number.isFinite(ts)) return "—";
   const withClock = ["30m", "1h", "4h"].includes(state.interval);
-  return new Date(ts).toLocaleString("zh-CN", {
+  return new Date(ts).toLocaleString(locale(), {
     timeZone: "Asia/Shanghai",
     year: "numeric",
     month: "2-digit",
@@ -147,7 +327,7 @@ const chartOptions = {
     minBarSpacing: 2,
   },
   localization: {
-    locale: "zh-CN",
+    locale: locale(),
     timeFormatter: (time) => formatBarTime(time),
   },
 };
@@ -193,14 +373,14 @@ const ma55Series = chart.addLineSeries({
 });
 const bollUpperSeries = chart.addLineSeries({
   color: "#5eead4", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
-  priceLineVisible: false, lastValueVisible: false, title: "BOLL上",
+  priceLineVisible: false, lastValueVisible: false, title: "BOLL Upper",
 });
 const bollMidSeries = chart.addLineSeries({
-  color: "#94a3b8", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "BOLL中",
+  color: "#94a3b8", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "BOLL Mid",
 });
 const bollLowerSeries = chart.addLineSeries({
   color: "#5eead4", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
-  priceLineVisible: false, lastValueVisible: false, title: "BOLL下",
+  priceLineVisible: false, lastValueVisible: false, title: "BOLL Lower",
 });
 const macdHistSeries = macdChart.addHistogramSeries({
   lastValueVisible: false, priceLineVisible: false, title: "MACD",
@@ -215,7 +395,7 @@ const volHistSeries = volChart.addHistogramSeries({
   lastValueVisible: false, priceLineVisible: false, title: "ATR%",
 });
 const volMaSeries = volChart.addLineSeries({
-  color: "#5eead4", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "ATR%均",
+  color: "#5eead4", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "ATR% MA",
 });
 
 const storedFlag = (key, fallback = true) => {
@@ -393,7 +573,7 @@ function applyOverlays(data = state.data) {
 function renderChart(data, { preserveView = false } = {}) {
   candleSeries.setData(data.candles);
   volumeSeries.setData(data.volume);
-  candleSeries.setMarkers(els.patterns.checked ? data.patternMarkers : data.strategyMarkers);
+  candleSeries.setMarkers(localizedMarkers(els.patterns.checked ? data.patternMarkers : data.strategyMarkers));
   state.maMaps = Object.fromEntries(
     Object.entries(data.ma).map(([key, values]) => [key, mapPoints(values)]),
   );
@@ -430,38 +610,40 @@ function renderInstrument(data) {
   els.change.className = data.meta.change > 0 ? "positive" : data.meta.change < 0 ? "negative" : "neutral";
   els.signalCount.textContent = data.strategyMarkers.length;
   els.barCount.textContent = data.meta.forming
-    ? `${data.meta.bars} 根（含进行中）`
-    : `${data.meta.bars} 根已完成 K 线`;
-  els.lastUpdate.textContent = new Date(data.meta.lastTime * 1000).toLocaleDateString("zh-CN", {
+    ? t("barsForming", { count: data.meta.bars })
+    : t("barsClosed", { count: data.meta.bars });
+  els.lastUpdate.textContent = new Date(data.meta.lastTime * 1000).toLocaleDateString(locale(), {
     month: "2-digit", day: "2-digit", hour: ["30m", "1h", "4h"].includes(data.interval) ? "2-digit" : undefined,
   });
 
   const signal = data.meta.signal;
   els.signalBadge.className = `signal-badge ${signal}`;
-  els.signalBadge.textContent = signal === "buy" ? "买入" : signal === "sell" ? "卖出" : "观察";
-  const names = data.meta.patterns.join(" · ");
-  els.signalTitle.textContent = names || (signal === "hold" ? "暂无交易信号" : "135 策略信号");
+  els.signalBadge.textContent = signal === "buy" ? t("buy") : signal === "sell" ? t("sell") : t("watch");
+  const names = data.meta.patterns.map(translatePattern).join(" · ");
+  els.signalTitle.textContent = names || (signal === "hold" ? t("noSignal") : t("strategySignal"));
   els.signalDescription.textContent =
-    signal === "hold" ? "等待最新一根 K 线收盘确认" : `信号已在 ${new Date(data.meta.lastTime * 1000).toLocaleDateString("zh-CN")} 收盘确认`;
+    signal === "hold"
+      ? t("waitingClose")
+      : t("confirmedOn", { date: new Date(data.meta.lastTime * 1000).toLocaleDateString(locale()) });
 }
 
 function renderSignalLog(markers) {
   const rows = [...markers].reverse().slice(0, 12);
   if (!rows.length) {
-    els.signalTable.innerHTML = '<div class="empty-row">当前范围内没有策略信号</div>';
+    els.signalTable.innerHTML = `<div class="empty-row">${t("noSignals")}</div>`;
     return;
   }
   const prices = new Map(state.data.candles.map((item) => [item.time, item.close]));
   els.signalTable.innerHTML = rows.map((marker) => {
     const buy = marker.shape === "arrowUp";
-    const date = new Date(marker.time * 1000).toLocaleDateString("zh-CN", {
+    const date = new Date(marker.time * 1000).toLocaleDateString(locale(), {
       year: "numeric", month: "2-digit", day: "2-digit",
     });
     return `
       <div class="signal-row">
         <time>${date}</time>
-        <span class="signal-type ${buy ? "buy" : "sell"}">${buy ? "买入" : "卖出"}</span>
-        <span>${marker.text || "135 信号"}</span>
+        <span class="signal-type ${buy ? "buy" : "sell"}">${buy ? t("buy") : t("sell")}</span>
+        <span>${marker.text ? translateMarkerText(marker.text) : t("signal")}</span>
         <span class="signal-price">${formatPrice(prices.get(marker.time))} USDT</span>
       </div>`;
   }).join("");
@@ -484,7 +666,7 @@ async function loadChart({ notify = false, silent = false } = {}) {
     });
     const response = await fetch(`/api/chart?${query}`);
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.detail || "行情请求失败");
+    if (!response.ok) throw new Error(t("requestFailed"));
     if (requestId !== state.requestId) return;
     const preserveView = silent && Boolean(state.data);
     state.data = payload;
@@ -497,7 +679,7 @@ async function loadChart({ notify = false, silent = false } = {}) {
     localStorage.setItem("njm135.exitMa", state.exitMa);
     els.marketStatus.classList.remove("offline");
     startLiveBar();
-    if (notify) toast("行情已更新");
+    if (notify) toast(t("updated"));
   } catch (error) {
     if (requestId !== state.requestId) return;
     if (!silent) {
@@ -574,10 +756,10 @@ function renderSymbols(filter = "") {
     return `
       <button class="symbol-row ${item.symbol === state.symbol ? "active" : ""}" data-symbol="${item.symbol}">
         <span class="mini-icon">${item.base.slice(0, 1)}</span>
-        <span class="symbol-meta"><strong>${item.base}</strong><small>${item.lastPrice == null ? "USDT 永续" : formatPrice(item.lastPrice)}</small></span>
+        <span class="symbol-meta"><strong>${item.base}</strong><small>${item.lastPrice == null ? `USDT ${t("perpetual")}` : formatPrice(item.lastPrice)}</small></span>
         <span class="change ${klass}">${item.change24h == null ? "—" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`}</span>
       </button>`;
-  }).join("") || '<div class="empty-row">没有匹配的币种</div>';
+  }).join("") || `<div class="empty-row">${t("noSymbols")}</div>`;
 }
 
 async function loadSymbols() {
@@ -587,7 +769,7 @@ async function loadSymbols() {
     state.symbols = payload.items || [];
     renderSymbols();
   } catch {
-    els.symbolList.innerHTML = '<div class="empty-row">币种列表加载失败</div>';
+    els.symbolList.innerHTML = `<div class="empty-row">${t("symbolsFailed")}</div>`;
   }
 }
 
@@ -627,8 +809,8 @@ els.exitMa.addEventListener("change", () => {
 });
 els.patterns.addEventListener("change", () => {
   if (!state.data) return;
-  candleSeries.setMarkers(els.patterns.checked ? state.data.patternMarkers : state.data.strategyMarkers);
-  toast(els.patterns.checked ? "已显示全部 135 形态" : "仅显示策略买卖信号");
+  candleSeries.setMarkers(localizedMarkers(els.patterns.checked ? state.data.patternMarkers : state.data.strategyMarkers));
+  toast(els.patterns.checked ? t("allPatternsShown") : t("strategyOnly"));
 });
 const persistOverlay = (key, checked) => {
   localStorage.setItem(`njm135.show.${key}`, checked ? "1" : "0");
@@ -641,7 +823,12 @@ els.showVol.addEventListener("change", () => persistOverlay("vol", els.showVol.c
 els.invertChart.addEventListener("change", () => {
   localStorage.setItem("njm135.show.invert", els.invertChart.checked ? "1" : "0");
   applyInvertScale();
-  toast(els.invertChart.checked ? "已翻转主图坐标" : "已恢复主图坐标");
+  toast(els.invertChart.checked ? t("scaleInverted") : t("scaleRestored"));
+});
+els.languageSwitch.addEventListener("click", () => {
+  state.language = state.language === "en" ? "zh-CN" : "en";
+  localStorage.setItem("njm135.language", state.language);
+  applyLanguage();
 });
 els.refresh.addEventListener("click", () => loadChart({ notify: true }));
 $("#retryButton").addEventListener("click", () => loadChart());
@@ -649,5 +836,6 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) pollLatestBar();
 });
 
+applyLanguage();
 loadSymbols();
 loadChart();

@@ -50,7 +50,11 @@ def test_web_routes_validate_chart_query() -> None:
     client = TestClient(web_app.app)
 
     assert client.get("/api/health").json() == {"status": "ok"}
-    assert client.get("/").status_code == 200
+    home = client.get("/")
+    assert home.status_code == 200
+    assert 'id="languageSwitch"' in home.text
+    assert "Powered by haigechanlun" in home.text
+    assert "https://x.com/haigechanlun666" in home.text
     response = client.get("/api/chart?symbol=NOT_A_PAIR&interval=1d")
     assert response.status_code == 400
     response = client.get("/api/chart?symbol=BTCUSDT&interval=15m")

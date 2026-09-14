@@ -1,0 +1,3 @@
+# Optional Gate.io SDK. Only needed for: python -m njm135 live --live
+-r requirements.txt
+gate-api>=6.0

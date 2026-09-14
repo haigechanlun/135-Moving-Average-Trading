@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="宁俊明 135 均线战法信号看盘" />
+    <meta name="description" content="135 moving-average strategy signal desk" />
     <title>135 Signal Desk</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,11 +15,12 @@
       <header class="topbar">
         <a class="brand" href="/">
           <span class="brand-mark">135</span>
-          <span><strong>Signal Desk</strong><small>13 · 34 · 55 均线观察台</small></span>
+          <span><strong>Signal Desk</strong><small><span data-i18n="brandTagline">13 · 34 · 55 MA monitor</span> · Powered by haigechanlun</small></span>
         </a>
         <div class="top-actions">
           <span id="marketStatus" class="market-status"><i></i> Binance Futures</span>
-          <button id="refreshButton" class="icon-button" title="刷新行情" aria-label="刷新行情">
+          <button id="languageSwitch" class="language-switch" type="button" aria-label="Switch language">中文</button>
+          <button id="refreshButton" class="icon-button" title="Refresh market data" aria-label="Refresh market data" data-i18n-title="refresh">
             <svg viewBox="0 0 24 24"><path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5m-5 4a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"/></svg>
           </button>
         </div>
@@ -29,18 +30,18 @@
         <aside class="sidebar">
           <div class="sidebar-head">
             <div>
-              <span class="eyebrow">MARKET</span>
-              <h2>永续合约</h2>
+              <span class="eyebrow" data-i18n="market">MARKET</span>
+              <h2 data-i18n="perpetualContracts">Perpetuals</h2>
             </div>
             <span id="symbolCount" class="count-badge">—</span>
           </div>
           <label class="search-box">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-            <input id="symbolSearch" type="search" placeholder="搜索 BTC、ETH..." autocomplete="off" />
+            <input id="symbolSearch" type="search" placeholder="Search BTC, ETH..." data-i18n-placeholder="search" autocomplete="off" />
           </label>
           <div class="list-head">
-            <button type="button" id="sortVolume" class="sort-btn" title="按成交额排序">成交额</button>
-            <button type="button" id="sortChange" class="sort-btn" title="按24h涨跌幅排序">24h</button>
+            <button type="button" id="sortVolume" class="sort-btn" title="Sort by volume" data-i18n-title="sortVolume" data-i18n="volume">Volume</button>
+            <button type="button" id="sortChange" class="sort-btn" title="Sort by 24h change" data-i18n-title="sortChange">24h</button>
           </div>
           <div id="symbolList" class="symbol-list">
             <div class="skeleton-list"></div>
@@ -54,7 +55,7 @@
               <div>
                 <div class="instrument-title">
                   <h1 id="instrumentSymbol">BTC / USDT</h1>
-                  <span>永续</span>
+                  <span data-i18n="perpetual">PERP</span>
                 </div>
                 <div class="quote-line">
                   <strong id="lastPrice">—</strong>
@@ -63,15 +64,15 @@
               </div>
             </div>
             <div class="controls">
-              <div class="segmented" aria-label="K线周期">
-                <button data-interval="30m">30分钟</button>
-                <button data-interval="1h">1小时</button>
-                <button data-interval="4h">4小时</button>
-                <button class="active" data-interval="1d">日线</button>
-                <button data-interval="1w">周线</button>
+              <div class="segmented" aria-label="Candlestick interval" data-i18n-aria-label="interval">
+                <button data-interval="30m" data-i18n="interval30m">30m</button>
+                <button data-interval="1h" data-i18n="interval1h">1h</button>
+                <button data-interval="4h" data-i18n="interval4h">4h</button>
+                <button class="active" data-interval="1d" data-i18n="interval1d">1D</button>
+                <button data-interval="1w" data-i18n="interval1w">1W</button>
               </div>
               <label class="select-control">
-                <span>离场线</span>
+                <span data-i18n="exitMa">Exit MA</span>
                 <select id="exitMa">
                   <option value="13">MA13</option>
                   <option value="34">MA34</option>
@@ -96,17 +97,17 @@
               <label class="toggle-control">
                 <input id="showVol" type="checkbox" checked />
                 <span class="toggle"></span>
-                <span>波动率</span>
+                <span data-i18n="volatility">Volatility</span>
               </label>
               <label class="toggle-control">
                 <input id="invertChart" type="checkbox" />
                 <span class="toggle"></span>
-                <span>翻转</span>
+                <span data-i18n="invert">Invert</span>
               </label>
               <label class="toggle-control">
                 <input id="allPatterns" type="checkbox" />
                 <span class="toggle"></span>
-                <span>全部形态</span>
+                <span data-i18n="allPatterns">All patterns</span>
               </label>
             </div>
           </div>
@@ -131,15 +132,15 @@
                   <span>MACD</span>
                   <span class="macd-dif">DIF <b id="legendMacdDif">—</b></span>
                   <span class="macd-dea">DEA <b id="legendMacdDea">—</b></span>
-                  <span class="macd-hist">柱 <b id="legendMacdHist">—</b></span>
+                  <span class="macd-hist"><span data-i18n="histogram">HIST</span> <b id="legendMacdHist">—</b></span>
                 </div>
                 <div id="macdChart" class="chart"></div>
               </div>
               <div id="volPane" class="sub-pane">
                 <div class="macd-legend">
                   <span>ATR%</span>
-                  <span class="vol-hot">当前 <b id="legendAtrPct">—</b></span>
-                  <span class="vol-base">常态 <b id="legendAtrMa">—</b></span>
+                  <span class="vol-hot"><span data-i18n="current">Current</span> <b id="legendAtrPct">—</b></span>
+                  <span class="vol-base"><span data-i18n="baseline">Baseline</span> <b id="legendAtrMa">—</b></span>
                 </div>
                 <div id="volChart" class="chart"></div>
               </div>
@@ -147,50 +148,54 @@
             </div>
             <div id="chartLoading" class="chart-loading">
               <span class="spinner"></span>
-              <p>正在加载行情与 135 信号</p>
+              <p data-i18n="loading">Loading market data and 135 signals</p>
             </div>
             <div id="chartError" class="chart-error hidden">
-              <strong>行情加载失败</strong>
-              <p id="errorMessage">请稍后重试</p>
-              <button id="retryButton">重新加载</button>
+              <strong data-i18n="loadFailed">Could not load market data</strong>
+              <p id="errorMessage" data-i18n="tryAgain">Please try again</p>
+              <button id="retryButton" data-i18n="reload">Reload</button>
             </div>
           </div>
 
           <div class="insight-grid">
             <article class="signal-card">
-              <div class="card-label">当前信号</div>
+              <div class="card-label" data-i18n="currentSignal">Current signal</div>
               <div class="signal-main">
-                <span id="signalBadge" class="signal-badge hold">观察</span>
+                <span id="signalBadge" class="signal-badge hold">Watch</span>
                 <div>
-                  <strong id="signalTitle">暂无交易信号</strong>
-                  <p id="signalDescription">等待最新一根 K 线收盘确认</p>
+                  <strong id="signalTitle">No trading signal</strong>
+                  <p id="signalDescription">Waiting for the latest candle to close</p>
                 </div>
               </div>
             </article>
             <article class="stat-card">
-              <div class="card-label">图表信号</div>
+              <div class="card-label" data-i18n="chartSignals">Chart signals</div>
               <strong id="signalCount">—</strong>
-              <p>当前可视范围内的策略买卖点</p>
+              <p data-i18n="visibleSignals">Strategy entries and exits in view</p>
             </article>
             <article class="stat-card">
-              <div class="card-label">数据状态</div>
+              <div class="card-label" data-i18n="dataStatus">Data status</div>
               <strong id="lastUpdate">—</strong>
-              <p id="barCount">— 根已完成 K 线</p>
+              <p id="barCount">— closed candles</p>
             </article>
           </div>
 
           <section class="signal-log">
             <div class="section-title">
-              <div><span class="eyebrow">SIGNALS</span><h2>最近信号</h2></div>
+              <div><span class="eyebrow" data-i18n="signals">SIGNALS</span><h2 data-i18n="recentSignals">Recent signals</h2></div>
               <div class="signal-key">
-                <span><i class="buy-dot"></i>买入</span>
-                <span><i class="sell-dot"></i>卖出</span>
+                <span><i class="buy-dot"></i><span data-i18n="buy">Buy</span></span>
+                <span><i class="sell-dot"></i><span data-i18n="sell">Sell</span></span>
               </div>
             </div>
             <div id="signalTable" class="signal-table"></div>
           </section>
         </section>
       </main>
+      <footer class="site-footer">
+        <span>135 Signal Desk</span>
+        <span>Powered by <a href="https://x.com/haigechanlun666" target="_blank" rel="noopener noreferrer">@haigechanlun666</a></span>
+      </footer>
     </div>
 
     <div id="toast" class="toast"></div>

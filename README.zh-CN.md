@@ -132,17 +132,31 @@ python -m njm135 backtest --csv data/BTCUSDT_futures_4h.csv \
 
 ## 安装
 
+Python 3.9+。本地最快的方式：
+
+```bash
+chmod +x deploy_local.sh
+./deploy_local.sh
+```
+
+脚本会建 `.venv`、安装 `requirements.txt`（核心 + 测试 + Web 看盘），并打开 <http://127.0.0.1:8000>。
+
+```bash
+./deploy_local.sh --install-only     # 只装依赖，不启服务
+./deploy_local.sh --with-live        # 额外安装 Gate SDK
+HOST=0.0.0.0 PORT=8000 ./deploy_local.sh
+```
+
+也可以手装：
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -r requirements.txt
+pip install -e .
 ```
 
-实盘再装 Gate SDK：
-
-```bash
-pip install -e ".[dev,live]"
-```
+实盘再装 Gate SDK：`pip install -r requirements-live.txt` 或 `pip install -e ".[dev,live]"`。只有 `--live` 才需要把 `.env.example` 拷成 `.env` 并填 `GATE_API_KEY` / `GATE_API_SECRET`。
 
 ## 回测（Binance）
 
@@ -192,14 +206,15 @@ Binance 交易对写成 `BTCUSDT`，内部会转成 Gate 的 `BTC_USDT`。K 线�
 - 标准蜡烛图、成交量；MA / 布林带 / MACD / ATR% 波动率均可开关；主图可翻转坐标
 - 策略买卖箭头、最近信号列表；可切换查看全部经典形态
 - MA13 / MA34 / MA55 离场线切换
+- 默认英文，可切换中文并记住选择；页脚展示作者主页
 
 ![135 Signal Desk](docs/web-desk.png)
 
 安装并启动：
 
 ```bash
-pip install -e ".[web]"
-python -m web
+./deploy_local.sh
+# 或：pip install -r requirements.txt && python -m web
 ```
 
 打开 <http://127.0.0.1:8000>。币种列表来自 Binance USDT 永续；行情含当前进行中的 K 线，每 2 秒刷新最新一根。135 信号仍按收盘后的规则画在图上。

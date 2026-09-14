@@ -131,17 +131,31 @@ Fills are always on the **next open** after a closed bar. We do not assume a res
 
 ## Install
 
+Python 3.9+. Fastest local path:
+
+```bash
+chmod +x deploy_local.sh
+./deploy_local.sh
+```
+
+That creates `.venv`, installs `requirements.txt` (core + tests + web desk), and starts the chart UI at <http://127.0.0.1:8000>.
+
+```bash
+./deploy_local.sh --install-only     # deps only, no server
+./deploy_local.sh --with-live        # also install Gate SDK
+HOST=0.0.0.0 PORT=8000 ./deploy_local.sh
+```
+
+Or do it by hand:
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -r requirements.txt
+pip install -e .
 ```
 
-For live trading, add the Gate SDK:
-
-```bash
-pip install -e ".[dev,live]"
-```
+Live trading extra (Gate SDK): `pip install -r requirements-live.txt` or `pip install -e ".[dev,live]"`. Copy `.env.example` to `.env` and fill `GATE_API_KEY` / `GATE_API_SECRET` only if you use `--live`.
 
 ## Backtest (Binance)
 
@@ -193,12 +207,13 @@ No Gate account? [Sign up](https://www.gatewebsite.com/share/VVNAULXZAG).
 - Candles + volume; MA / Bollinger / MACD / ATR% toggles; invert the main scale
 - Strategy arrows, recent signals, optional full classic-pattern overlay
 - Exit MA: 13 / 34 / 55
+- English by default, with a persistent Chinese switch; creator link in the footer
 
 ![135 Signal Desk](docs/web-desk.png)
 
 ```bash
-pip install -e ".[web]"
-python -m web
+./deploy_local.sh
+# or: pip install -r requirements.txt && python -m web
 ```
 
 Open <http://127.0.0.1:8000>.

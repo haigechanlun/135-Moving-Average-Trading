@@ -51,8 +51,17 @@ _contracts_cache: tuple[float, list[dict[str, Any]]] = (0.0, [])
 _tickers_cache: tuple[float, dict[str, dict[str, Any]]] = (0.0, {})
 _symbols_cache: tuple[float, list[dict[str, Any]]] = (0.0, [])
 
+class NoCacheStaticFiles(StaticFiles):
+    """前端改完必须立刻生效：默认不带 Cache-Control 时浏览器会沿用旧脚本。"""
+
+    def file_response(self, *args: Any, **kwargs: Any):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 app = FastAPI(title="135 Signal Desk", version="1.0.0")
-app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.mount("/static", NoCacheStaticFiles(directory=STATIC), name="static")
 
 
 def _json_number(value: Any) -> float | None:
@@ -413,7 +422,7 @@ def _serialize_live_bar(symbol: str, interval: str) -> dict[str, Any]:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
+    return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/health")

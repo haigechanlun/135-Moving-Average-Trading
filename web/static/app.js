@@ -32,6 +32,7 @@ const els = {
   showBoll: $("#showBoll"),
   showMacd: $("#showMacd"),
   showVol: $("#showVol"),
+  invertChart: $("#invertChart"),
   macdPane: $("#macdPane"),
   macdChart: $("#macdChart"),
   volPane: $("#volPane"),
@@ -225,6 +226,12 @@ els.showMa.checked = storedFlag("ma");
 els.showBoll.checked = storedFlag("boll");
 els.showMacd.checked = storedFlag("macd");
 els.showVol.checked = storedFlag("vol");
+els.invertChart.checked = storedFlag("invert", false);
+
+function applyInvertScale() {
+  chart.priceScale("right").applyOptions({ invertScale: els.invertChart.checked });
+}
+applyInvertScale();
 
 new ResizeObserver((entries) => {
   const box = entries[0].contentRect;
@@ -631,6 +638,11 @@ els.showMa.addEventListener("change", () => persistOverlay("ma", els.showMa.chec
 els.showBoll.addEventListener("change", () => persistOverlay("boll", els.showBoll.checked));
 els.showMacd.addEventListener("change", () => persistOverlay("macd", els.showMacd.checked));
 els.showVol.addEventListener("change", () => persistOverlay("vol", els.showVol.checked));
+els.invertChart.addEventListener("change", () => {
+  localStorage.setItem("njm135.show.invert", els.invertChart.checked ? "1" : "0");
+  applyInvertScale();
+  toast(els.invertChart.checked ? "已翻转主图坐标" : "已恢复主图坐标");
+});
 els.refresh.addEventListener("click", () => loadChart({ notify: true }));
 $("#retryButton").addEventListener("click", () => loadChart());
 document.addEventListener("visibilitychange", () => {

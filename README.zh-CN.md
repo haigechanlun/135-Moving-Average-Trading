@@ -102,6 +102,8 @@ BTCUSDT 期货日线：
 
 ETHUSDT 期货日线、MA55 满仓：累计 3248%、夏普 1.25、最大回撤 -62.5%，同期买持 1555%。收益更高、回撤也更深，没有单独调参。
 
+同一思路在 [Quantiacs](https://quantiacs.com) 上的提交：[20617381](https://quantiacs.com/statistic/20617381)、[20617613](https://quantiacs.com/statistic/20617613)。
+
 ### 持仓状态离场
 
 形态信号是无状态的，表达不了「相对进场价」这类规则，所以独立包 `njm135.risk` 管理 `RiskConfig` 与有状态的 `RiskManager`。回测引擎和实盘轮询共用同一套判定。

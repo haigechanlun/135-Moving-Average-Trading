@@ -109,6 +109,8 @@ Same knobs on shorter BTCUSDT futures bars:
 
 ETHUSDT futures daily, MA55 full size: +3248% total, Sharpe 1.25, max DD -62.5%, buy-and-hold +1555%. Bigger return, deeper hole. No extra tuning.
 
+Same idea on [Quantiacs](https://quantiacs.com): [submission 20617381](https://quantiacs.com/statistic/20617381), [submission 20617613](https://quantiacs.com/statistic/20617613).
+
 ### Position exits
 
 Pattern flags have no memory of entry price, so `njm135.risk` owns `RiskConfig` / `RiskManager`. Backtest and live share it.

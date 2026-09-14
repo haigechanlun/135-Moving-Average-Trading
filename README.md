@@ -1,132 +1,133 @@
-# 135 均线战法（宁俊明）
+**Language:** English | [中文](README.zh-CN.md)
 
-基础 Python 量化仓库：13 / 34 / 55 日均线系统。行情用 **Binance**，实盘下单用 **Gate.io USDT 永续**，模块划分对齐 `haigechanlun`（`data/binance_api.py` + `trade/gate/gate_trade.py`）。
+# 135 Moving Average System
 
-本仓库是教学与研究骨架，不是原书 55 种图解的完整复刻，也不构成投资建议。
+A small Python toolkit for Ning Junming’s **13 / 34 / 55** moving-average method.
 
-## 模块
+- Market data: **Binance**
+- Live orders: **Gate.io USDT perpetuals**
+- Web desk: chart + signals on top of the same core
+
+This is a research / teaching skeleton. It is not a full copy of the original 55 chart patterns, and it is not investment advice.
+
+## Layout
 
 ```
 src/njm135/
-  core/       基础核心：均线、形态、买卖信号（不碰交易所）
-  market/     行情：Binance K 线、CSV、合成数据
-  risk/       风控：止损、冷却、大均线过滤（回测和实盘共用）
-  backtest/   回测：下一根开盘成交、净值图
-  live/       实盘：Broker 协议、Gate 适配、轮询引擎
-web/          Web 看盘：主流币 K 线、均线与 135 信号
+  core/       MAs, patterns, buy/sell signals (no exchange code)
+  market/     Binance klines, CSV, synthetic data
+  risk/       Stops, cooldown, regime filter (shared by backtest and live)
+  backtest/   Next-open fills, equity plots
+  live/       Broker protocol, Gate adapter, polling loop
+web/          Chart desk for USDT perps
 ```
 
-数据流：
+Flow: `market` pulls closed bars → `core` tags patterns → `backtest` or `live` acts on them.
 
-1. `market` 拉 Binance 已完成 K 线
-2. `core` 计算 135 形态与信号
-3. `backtest` 离线回测，或 `live` 把信号交给 Gate
+## How it works
 
-## 原理
+“135” comes from the first digits of Fibonacci **13, 34, 55**.
 
-「135」取自斐波那契 **13、34、55** 的首位数字。
+| MA | Role |
+|----|------|
+| MA13 | Short-term strength. A close below it often means get out. |
+| MA34 | Bridge between 13 and 55. A cross up through 55 is “MA swap”. |
+| MA55 | Mid-term trend / long-short line |
 
-| 均线 | 角色 |
-|------|------|
-| MA13 | 短期强弱；有效跌破倾向离场 |
-| MA34 | 承上启下；上穿 55 为「均线互换」 |
-| MA55 | 中期趋势与多空分界 |
+Defaults: SMA, **close confirmation**. Thresholds live in `PatternParams`.
 
-默认 SMA，突破一律 **收盘确认**。阈值集中在 `PatternParams`（走平斜率、靠近均线的百分比/ATR、放量缩量窗口、长期下跌/高位回看周期）。
+### Classic 13 patterns
 
-### 13 种经典形态
+Original Chinese names are kept in parentheses.
 
-| 阶段 | 形态 | 量化要点 | 默认角色 |
-|------|------|----------|----------|
-| 底部 | 红杏出墙 | 空头排列，13走平或勾头，收盘上穿13 | 买（默认） |
-| 底部 | 蚂蚁上树 | 均线粘合，连续小阳上55 | 买（默认） |
-| 启动 | 黑客点击 | 上破55后缩量回踩13/55结点 | 买（默认） |
-| 启动 | 红衣侠女 | 13金叉55 + 放量阳线 | 标注 |
-| 拉升 | 海底捞月 | 13下穿中长期线后再金叉55 | 标注 |
-| 拉升 | 均线互换 | 34由下上穿55 | 买（默认） |
-| 拉升 | 三线推进 | 三线收敛后同步向上 | 标注 |
-| 拉升 | 梅开二度 | 13死叉34后再金叉34 | 买（默认） |
-| 整理 | 走四方 | 上涨中围绕13横向整理 | 观察 |
-| 整理 | 浪子回头 | 连阴回踩55后收阳转强 | 标注 |
-| 顶部 | 一枝独秀 | 高位脱离13的长上影阳 | 卖（`--top-exits`） |
-| 顶部 | 独上高楼 | 高位跳空高开收阴 | 卖（`--top-exits`） |
-| 顶部 | 见好就收 | 13/55 乖离>10% 且 DIF 拐头向下 | 卖（`--top-exits`） |
+| Stage | Pattern | Rule of thumb | Default role |
+|-------|---------|---------------|--------------|
+| Bottom | Red apricot over the wall (红杏出墙) | Bear stack, MA13 flattening, close through 13 | Buy |
+| Bottom | Ants climbing a tree (蚂蚁上树) | Tight MAs, a run of small green bars through 55 | Buy |
+| Start | Hacker click (黑客点击) | After a break of 55, a quiet pullback to the 13/55 knot | Buy |
+| Start | Lady in red (红衣侠女) | 13 golden-cross 55 + a high-volume green bar | Mark only |
+| Rally | Moon from the sea (海底捞月) | 13 crosses below the slower MAs, then golden-crosses 55 | Mark only |
+| Rally | MA swap (均线互换) | 34 crosses up through 55 | Buy |
+| Rally | Three-line push (三线推进) | The three MAs tighten, then all slope up | Mark only |
+| Rally | Plum blossoms twice (梅开二度) | 13 death-crosses 34, then golden-crosses it again | Buy |
+| Pause | Walking the square (走四方) | Uptrend, sideways around 13 | Watch |
+| Pause | Prodigal returns (浪子回头) | A string of red bars tags 55, then a green bar turns up | Mark only |
+| Top | One branch stands out (一枝独秀) | High, stretched off 13, long upper wick | Sell with `--top-exits` |
+| Top | Alone on the high tower (独上高楼) | High gap-up open, closes red | Sell with `--top-exits` |
+| Top | Take profit and leave (见好就收) | 13/55 stretch >10% and DIF rolls over | Sell with `--top-exits` |
 
-默认策略只交易定义最清楚的几类：**买**红杏出墙 / 蚂蚁上树 / 黑客点击 / 均线互换 / 梅开二度 / 一阳穿三线；**卖**一阴破三线 / 一箭穿心（另加分道扬镳、跌破均线）。同一根 K 线既买又卖时 **卖优先**。一枝独秀 / 独上高楼 / 见好就收默认只标注，加 `--top-exits` 后参与离场，也可 `--exit-yizhi` / `--exit-dushang` / `--exit-jianhao` 单独开。
+The default book only **trades** the cleanest setups:
 
-「跌破均线」是**状态**（收盘在均线下方的每一根都算），不是「向下穿越的那一根」。用穿越会漏掉在均线下方建仓的情形（黑客点击回踩就可能如此），那种持仓会一直等不到离场条件。离场均线可切换：`--exit-ma 13|34|55`。回测 CLI 默认 **MA55 满仓**；13 更贴原书，拿得更短。
+- **Buy:** red apricot, ants, hacker click, MA swap, plum blossoms twice, one green through three MAs
+- **Sell:** one red through three MAs, arrow through the heart, plus a split-off and “below the exit MA”
 
-蚂蚁上树在 BTC 日线上一次都不触发（连续 5 根小阳 + 均线粘合 <3% 太严），目前等于没启用。
+If a bar is both buy and sell, **sell wins**. The three top patterns are marks only unless you pass `--top-exits` (or the per-pattern flags `--exit-yizhi` / `--exit-dushang` / `--exit-jianhao`).
 
-回测与实盘都是：已收盘 K 线出信号，下一根开盘附近成交。`--limit` 会向前翻页，超过 1000 根时会多次请求。
+“Below the MA” is a **state** (every close under the line), not a one-bar cross. A cross-only exit misses longs that were opened under the MA (hacker click can do that). Exit MA is `--exit-ma 13|34|55`. The CLI default is **full-size MA55**. MA13 is closer to the book and holds for less time.
 
-回测摘要会打印年化、同期买持、夏普、索提诺、卡尔玛、最大回撤（及最长回撤天数）、盈亏比、平均盈亏与平均持仓。夏普按权益日收益、无风险利率 0、加密 24/7（由 K 线间隔推算每年根数）年化。
+Ants climbing a tree never fires on BTC daily (five small green bars + MAs within 3% is too tight). Treat it as off.
 
-图分三栏：价格（对数轴，黄色底为持仓期，大三角是**真实成交**，小点是信号）、净值对比买入持有、回撤曲线。注意信号 ≠ 成交：已持仓时的买信号会被忽略。
+Signals print on a **closed** bar and fill near the **next open**. Same rule in backtest and live.
 
-![135 Signal Desk](docs/135_backtest.png)
+The summary prints CAGR, buy-and-hold, Sharpe, Sortino, Calmar, max drawdown (and longest DD days), profit factor, average win/loss, and average hold. Sharpe uses equity returns, rf = 0, and 24/7 crypto bars-per-year.
 
-本地 CSV、满仓、手续费 0.1%。日线样本 2019-11-10→2026-09-12（2499 根）；4h 仅 2024-06 起，1h 仅 2025-07 起，不能和日线直接比。
+The plot has three panes: log price (yellow = in trade; big triangles = **fills**; dots = signals), equity vs buy-and-hold, drawdown. A signal is not a fill. Extra buy signals while already long are ignored.
 
-BTCUSDT 期货日线：
+![Backtest](docs/135_backtest.png)
 
-| 方案 | 笔数 | 胜率 | 累计 | 年化 | 夏普 | 最大回撤 | 卡尔玛 | PF |
-|------|------|------|------|------|------|----------|--------|-----|
+Local CSV, full size, 0.1% fee. Daily sample: 2019-11-10 → 2026-09-12 (2499 bars). 4h starts 2024-06, 1h starts 2025-07 — don’t compare them to daily.
+
+BTCUSDT futures daily:
+
+| Setup | Trades | Win | Total | CAGR | Sharpe | Max DD | Calmar | PF |
+|-------|--------|-----|-------|------|--------|--------|--------|-----|
 | MA13 | 52 | 42.3% | 204% | 17.7% | 0.83 | -41.0% | 0.43 | 2.52 |
 | MA34 | 32 | 46.9% | 1036% | 42.7% | 1.28 | -44.3% | 0.96 | 5.75 |
-| MA55（回测默认） | 35 | 40.0% | 1365% | 48.1% | 1.30 | -43.8% | 1.10 | 5.62 |
-| MA55 + 连亏 2 笔冷却 30 根 | 32 | 43.8% | 1567% | 50.9% | 1.36 | -36.0% | 1.41 | 6.67 |
-| 买入持有 | — | — | 754% | — | — | -76.7% | — | — |
+| MA55 (default) | 35 | 40.0% | 1365% | 48.1% | 1.30 | -43.8% | 1.10 | 5.62 |
+| MA55 + 2-loss / 30-bar cooldown | 32 | 43.8% | 1567% | 50.9% | 1.36 | -36.0% | 1.41 | 6.67 |
+| Buy & hold | — | — | 754% | — | — | -76.7% | — | — |
 
-同一份日线、MA55 满仓，把顶部三形态当卖点（`--top-exits`）。独上高楼 0 次；见好就收 60 次、一枝独秀 16 次，多数是提前砍掉浮盈：
+Same daily file, MA55 full size, top patterns as sells (`--top-exits`). “Alone on the high tower” fired 0 times. “Take profit and leave” fired 60 times, “one branch” 16 times — mostly cutting winners early:
 
-| 方案 | 笔数 | 胜率 | 累计 | 年化 | 夏普 | 最大回撤 | 卡尔玛 | PF |
-|------|------|------|------|------|------|----------|--------|-----|
-| MA55（顶部关，默认） | 35 | 40.0% | 1365% | 48.1% | 1.30 | -43.8% | 1.10 | 5.62 |
+| Setup | Trades | Win | Total | CAGR | Sharpe | Max DD | Calmar | PF |
+|-------|--------|-----|-------|------|--------|--------|--------|-----|
+| MA55 (tops off, default) | 35 | 40.0% | 1365% | 48.1% | 1.30 | -43.8% | 1.10 | 5.62 |
 | `--top-exits` | 36 | 41.7% | 189% | 16.8% | 0.86 | -33.6% | 0.50 | 2.74 |
-| 仅 `--exit-yizhi` | 35 | 42.9% | 333% | 23.9% | 0.98 | -36.8% | 0.65 | 3.08 |
-| 仅 `--exit-jianhao` | 36 | 41.7% | 229% | 19.0% | 0.91 | -34.8% | 0.55 | 2.96 |
-| 仅 `--exit-dushang` | 35 | 40.0% | 1365% | 48.1% | 1.30 | -43.8% | 1.10 | 5.62 |
+| `--exit-yizhi` only | 35 | 42.9% | 333% | 23.9% | 0.98 | -36.8% | 0.65 | 3.08 |
+| `--exit-jianhao` only | 36 | 41.7% | 229% | 19.0% | 0.91 | -34.8% | 0.55 | 2.96 |
+| `--exit-dushang` only | 35 | 40.0% | 1365% | 48.1% | 1.30 | -43.8% | 1.10 | 5.62 |
 
-同参数在更短周期上（BTCUSDT 期货）：
+Same knobs on shorter BTCUSDT futures bars:
 
-| 周期 | 方案 | 笔数 | 累计 | 夏普 | 最大回撤 | 同期买持 |
-|------|------|------|------|------|----------|----------|
+| TF | Setup | Trades | Total | Sharpe | Max DD | Buy & hold |
+|----|-------|--------|-------|--------|--------|------------|
 | 4h | MA55 | 109 | -16.1% | -0.20 | -48.4% | +14.0% |
-| 4h | MA55 + 冷却 + MA100 | 58 | +41.1% | 0.87 | -19.9% | +14.0% |
+| 4h | MA55 + cooldown + MA100 | 58 | +41.1% | 0.87 | -19.9% | +14.0% |
 | 1h | MA55 | 225 | -41.3% | -1.93 | -42.8% | -34.7% |
 
-1h 信号过密，冷却也救不回来。4h 单独用 MA55 仍亏，叠冷却和大均线过滤后才略好于买持，样本只有约 2.3 年，当作对照即可。日线才是这套规则站得住的周期。
+1h is too noisy. 4h MA55 alone still loses; cooldown + a slow MA filter beats buy-and-hold, but the sample is only ~2.3 years. Daily is the timeframe this ruleset can stand on.
 
-ETHUSDT 期货日线、MA55 满仓：累计 3248%、夏普 1.25、最大回撤 -62.5%，同期买持 1555%。收益更高、回撤也更深，没有单独调参。
+ETHUSDT futures daily, MA55 full size: +3248% total, Sharpe 1.25, max DD -62.5%, buy-and-hold +1555%. Bigger return, deeper hole. No extra tuning.
 
-### 持仓状态离场
+### Position exits
 
-形态信号是无状态的，表达不了「相对进场价」这类规则，所以独立包 `njm135.risk` 管理 `RiskConfig` 与有状态的 `RiskManager`。回测引擎和实盘轮询共用同一套判定。
+Pattern flags have no memory of entry price, so `njm135.risk` owns `RiskConfig` / `RiskManager`. Backtest and live share it.
 
 ```bash
 python -m njm135 backtest --csv data/BTCUSDT_futures_1d.csv --exit-ma 55 --trailing 0.10
 ```
 
-- `--stop-loss 0.08` 固定止损（相对进场价）
-- `--trailing 0.10` 移动止损（相对持仓期最高收盘）
-- `--atr-stop 3` ATR 跟踪止损
-- `--loss-streak 2 --cooldown-bars 30` 连亏 2 笔后冷却 30 根
-- `--regime-ma 100` 收盘低于 MA100 时停止新开多，重新站上后恢复
+- `--stop-loss 0.08` hard stop vs entry
+- `--trailing 0.10` trail vs highest close while in the trade
+- `--atr-stop 3` ATR trail
+- `--loss-streak 2 --cooldown-bars 30` sit out 30 bars after two losses
+- `--regime-ma 100` no new longs while close is under MA100
 
-冷却与 MA100 是**开仓过滤**，不会强制平掉已有仓位。例如：
+Cooldown and MA100 only block **new** entries. They do not flatten an open trade.
 
-```bash
-python -m njm135 backtest --csv data/BTCUSDT_futures_1d.csv \
-  --position-pct 1 --exit-ma 55 --loss-streak 2 --cooldown-bars 30
+Fills are always on the **next open** after a closed bar. We do not assume a resting stop on the exchange, so you will not get optimistic “hit the stop tick-perfect” fills. Trades carry `exit_reason`: `signal` / `stop` / `trail` / `atr`.
 
-python -m njm135 backtest --csv data/BTCUSDT_futures_4h.csv \
-  --position-pct 1 --exit-ma 55 --loss-streak 2 --cooldown-bars 30 --regime-ma 100
-```
-
-一律在**已收盘** K 线上判定、下一根开盘成交，和实盘轮询已收盘 K 线的行为一致；不假设交易所挂着止损单，所以不会出现盘中被精确打在止损价上的乐观成交。成交记录多一列 `exit_reason`（signal / stop / trail / atr），摘要里也会给出分布。
-
-## 安装
+## Install
 
 ```bash
 python3 -m venv .venv
@@ -134,13 +135,13 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-实盘再装 Gate SDK：
+For live trading, add the Gate SDK:
 
 ```bash
 pip install -e ".[dev,live]"
 ```
 
-## 回测（Binance）
+## Backtest (Binance)
 
 ```bash
 python -m njm135 backtest --symbol BTCUSDT --interval 1d --kind futures --limit 1500
@@ -150,17 +151,19 @@ python -m njm135 backtest --csv data/BTCUSDT_futures_1d.csv --top-exits
 python -m njm135 backtest --csv data/BTCUSDT_futures_1d.csv --exit-jianhao
 ```
 
-现货：`--kind spot`。离线：`--demo` 或 `--csv klines.csv`。顶部形态默认只标注；`--top-exits` 三个一起当卖点，`--no-exit-jianhao` 可在开了 `--top-exits` 后单独关掉见好就收。
+Spot: `--kind spot`. Offline: `--demo` or `--csv klines.csv`. Top patterns are marks unless `--top-exits` is on. `--no-exit-jianhao` can turn one of them off after that.
 
-拉取并检查 K 线（默认写入 `data/`）：
+Fetch bars (writes under `data/` by default):
 
 ```bash
 python -m njm135 fetch --symbol BTCUSDT --interval 1d --kind futures --limit 2500
 ```
 
-## 实盘（Binance 信号 + Gate 下单）
+`--limit` pages backward; over 1000 bars means more than one request.
 
-默认走内存模拟仓（会记账，不会打到 Gate）：
+## Live (Binance signals, Gate orders)
+
+Default is an in-memory paper book (it tracks PnL, it does not hit Gate):
 
 ```bash
 export GATE_API_KEY=...
@@ -169,57 +172,55 @@ python -m njm135 live --symbol BTCUSDT --interval 15m --once \
   --exit-ma 55 --loss-streak 2 --cooldown-bars 30 --regime-ma 100
 ```
 
-真实下单必须加 `--live`：
+Real orders need `--live`:
 
 ```bash
 python -m njm135 live --symbol BTCUSDT --interval 15m --live --position-pct 0.3
 ```
 
-Binance 交易对写成 `BTCUSDT`，内部会转成 Gate 的 `BTC_USDT`。K 线走 Binance 公开接口，不需要 Binance Key。
+Pass Binance symbols (`BTCUSDT`). The live layer maps them to Gate (`BTC_USDT`). Klines use Binance public REST — no Binance key.
 
-没有 Gate 账号可以用这个注册链接：[Gate.com](https://www.gatewebsite.com/share/VVNAULXZAG)。
+No Gate account? [Sign up](https://www.gatewebsite.com/share/VVNAULXZAG).
 
-## Web 信号看盘
+## Web desk
 
-根目录的 `web/` 是独立看盘界面，后端直接复用 `njm135.core` 的信号计算，不在浏览器里重写策略。支持：
+`web/` is a separate chart UI. The backend reuses `njm135.core`; the browser does not reimplement the strategy.
 
-- Binance USDT 永续全部可交易合约；默认按 24h 成交额排序，可按涨跌幅升/降序
-- 1 小时、4 小时、日线、周线切换；未收盘 K 线一并展示，每 2 秒刷新最新一根
-- 标准蜡烛图、成交量；MA / 布林带 / MACD / ATR% 波动率均可开关；主图可翻转坐标
-- 策略买卖箭头、最近信号列表；可切换查看全部经典形态
-- MA13 / MA34 / MA55 离场线切换
+- All tradeable Binance USDT perps; sort by 24h volume or % change
+- 1h / 4h / 1d / 1w; forming bar included, last bar polled every 2s
+- Candles + volume; MA / Bollinger / MACD / ATR% toggles; invert the main scale
+- Strategy arrows, recent signals, optional full classic-pattern overlay
+- Exit MA: 13 / 34 / 55
 
 ![135 Signal Desk](docs/web-desk.png)
-
-安装并启动：
 
 ```bash
 pip install -e ".[web]"
 python -m web
 ```
 
-打开 <http://127.0.0.1:8000>。币种列表来自 Binance USDT 永续；行情含当前进行中的 K 线，每 2 秒刷新最新一根。135 信号仍按收盘后的规则画在图上。
+Open <http://127.0.0.1:8000>.
 
-## 测试
+## Tests
 
 ```bash
 pytest
 ```
 
-## 未来优化
+## What’s next
 
-当前骨架能跑通日线多头回测和 Gate 轮询，下面这些是已经看见、但还没做成默认的缺口。
+The daily long book and Gate poll loop already run. These are known gaps, not the default path yet.
 
-- **样本外验证。** MA55、连亏冷却、MA100 都是在同一份 BTC 日线上挑出来的。下一步应做滚动训练/测试（walk-forward），并在未调参的品种上复验，避免把样本内最优当成可交易规则。
-- **顶部离场阈值要重标定。** 一枝独秀 / 独上高楼 / 见好就收已能当卖点（`--top-exits`），但日线里见好就收过密，累计收益从 1365% 掉到约 189%，只把最大回撤从 -44% 收到 -34%。独上高楼在 BTC 日线 0 次。需要按品种调乖离/影线阈值，而不是默认全开。
-- **固定止损对这笔策略几乎没用。** 日线 MA55 平均亏损约 -3.8%，8% 止损几乎从未触发；移动止损 10% 能把回撤压到约 -38%，但累计收益从 1365% 掉到 613%。更对症的是冷却/大周期过滤，而不是把止损拧得更紧。
-- **蚂蚁上树与若干买点要重标定。** 蚂蚁上树在 BTC 日线 0 次触发；黑客点击会在 MA13 下方进场。阈值现在挤在 `PatternParams` 里，应用真实 K 线逐形态核对后再决定默认开哪些。
-- **短周期另做一套，而不是把日线参数塞进 1h。** 1h 满仓 MA55 累计约 -41%；4h 要叠冷却 + MA100 才略好于买持，且样本只有约 2.3 年。需要更高的进场门槛、更慢的离场，或直接不做 1h。
-- **实盘状态要落盘。** `RiskManager` 的连亏计数、冷却剩余、持仓期最高收盘现在只在进程内存里。进程重启会丢；Gate 上已有仓时也没有历史峰值。应写成本地状态文件，并和交易所仓位对账。
-- **成交模型再贴近实盘。** 回测按「收盘确认、下一根开盘成交」，没有滑点、资金费、部分成交。若以后用交易所条件单做盘中止损，回测也要改成对应的成交假设，否则会系统性乐观。
-- **仓位与多标的。** 满仓日线最大回撤仍在 -36%～-44%。可按波动或账户回撤缩放 `--position-pct`；多标的时用同一套 `risk` 做总暴露上限，而不是每个币种各自满仓。
-- **风控引擎迭代** 风控规则简单实现初版，有很大优化迭代空间。 
-- **多套理论共振** 可结合其他理论提高胜率。
-- **实盘离场** 实盘离场条件可以结合4h周期来判断，止损可以提前出场。
+- **Out-of-sample.** MA55, cooldown, and MA100 were picked on the same BTC daily file. Next: walk-forward, and symbols that were not used to tune.
+- **Retune top exits.** `--top-exits` works, but “take profit and leave” fires too often on daily BTC (1365% → ~189% total, DD only -44% → -34%). “High tower” never fired. Tune stretch / wick by symbol; don’t turn all three on by default.
+- **Hard stops barely help this book.** Average daily MA55 loss is about -3.8%, so an 8% stop almost never hits. A 10% trail cuts DD to ~-38% but total return 1365% → 613%. Cooldown / slow-MA filter is the better lever.
+- **Retune some buys.** Ants never fire on BTC daily; hacker click can enter under MA13. Walk real bars per pattern before deciding the default set.
+- **Don’t paste daily params onto 1h.** Full-size 1h MA55 is about -41%. 4h needs cooldown + MA100 just to beat buy-and-hold, on ~2.3 years. Use a slower book, or skip 1h.
+- **Persist live state.** Loss streak, cooldown, and peak close currently live in RAM. Restart = lost. Write a state file and reconcile with exchange positions.
+- **Fills vs live.** Model is close-confirm / next-open. No slippage, funding, or partials. If you later use exchange stop orders, change the fill model or the backtest will look too good.
+- **Sizing and multi-symbol.** Full-size daily DD is still -36% to -44%. Scale `--position-pct` with vol or account DD. One `risk` cap across symbols, not a full book on each.
+- **Risk engine.** First cut only — plenty of room.
+- **Other frameworks.** Combine with a second method if you want a higher bar for entries.
+- **Live exits.** A 4h overlay can get you out earlier than the signal MA.
 
-## 欢迎fork和提PR
+PRs welcome.

@@ -77,3 +77,38 @@ def golden_cross(fast: pd.Series, slow: pd.Series) -> pd.Series:
 
 def death_cross(fast: pd.Series, slow: pd.Series) -> pd.Series:
     return (fast < slow) & (fast.shift(1) >= slow.shift(1))
+
+
+def add_macd(
+    bars: pd.DataFrame,
+    *,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> pd.DataFrame:
+    """DIF / DEA / MACD 柱（柱线为 (DIF-DEA)*2，通达信口径）。"""
+    out = bars.copy()
+    close = out["close"].astype(float)
+    dif = ema(close, fast) - ema(close, slow)
+    dea = dif.ewm(span=signal, adjust=False, min_periods=signal, ignore_na=True).mean()
+    out["macd_dif"] = dif
+    out["macd_dea"] = dea
+    out["macd_hist"] = (dif - dea) * 2.0
+    return out
+
+
+def add_bollinger(
+    bars: pd.DataFrame,
+    *,
+    window: int = 20,
+    num_std: float = 2.0,
+) -> pd.DataFrame:
+    """收盘价布林带：中轨 SMA，上下轨 ±N 倍标准差。"""
+    out = bars.copy()
+    close = out["close"].astype(float)
+    mid = close.rolling(window=window, min_periods=window).mean()
+    std = close.rolling(window=window, min_periods=window).std(ddof=0)
+    out["boll_mid"] = mid
+    out["boll_upper"] = mid + num_std * std
+    out["boll_lower"] = mid - num_std * std
+    return out

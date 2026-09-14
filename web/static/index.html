@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="宁俊明 135 均线战法信号看盘" />
+    <title>135 Signal Desk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/">
+          <span class="brand-mark">135</span>
+          <span><strong>Signal Desk</strong><small>13 · 34 · 55 均线观察台</small></span>
+        </a>
+        <div class="top-actions">
+          <span id="marketStatus" class="market-status"><i></i> Binance Futures</span>
+          <button id="refreshButton" class="icon-button" title="刷新行情" aria-label="刷新行情">
+            <svg viewBox="0 0 24 24"><path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5m-5 4a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="sidebar">
+          <div class="sidebar-head">
+            <div>
+              <span class="eyebrow">MARKET</span>
+              <h2>永续合约</h2>
+            </div>
+            <span id="symbolCount" class="count-badge">—</span>
+          </div>
+          <label class="search-box">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <input id="symbolSearch" type="search" placeholder="搜索 BTC、ETH..." autocomplete="off" />
+          </label>
+          <div class="list-head">
+            <button type="button" id="sortVolume" class="sort-btn" title="按成交额排序">成交额</button>
+            <button type="button" id="sortChange" class="sort-btn" title="按24h涨跌幅排序">24h</button>
+          </div>
+          <div id="symbolList" class="symbol-list">
+            <div class="skeleton-list"></div>
+          </div>
+        </aside>
+
+        <section class="content">
+          <div class="instrument-bar">
+            <div class="instrument">
+              <div id="coinIcon" class="coin-icon">B</div>
+              <div>
+                <div class="instrument-title">
+                  <h1 id="instrumentSymbol">BTC / USDT</h1>
+                  <span>永续</span>
+                </div>
+                <div class="quote-line">
+                  <strong id="lastPrice">—</strong>
+                  <span id="priceChange">—</span>
+                </div>
+              </div>
+            </div>
+            <div class="controls">
+              <div class="segmented" aria-label="K线周期">
+                <button data-interval="1h">1小时</button>
+                <button data-interval="4h">4小时</button>
+                <button class="active" data-interval="1d">日线</button>
+                <button data-interval="1w">周线</button>
+              </div>
+              <label class="select-control">
+                <span>离场线</span>
+                <select id="exitMa">
+                  <option value="13">MA13</option>
+                  <option value="34">MA34</option>
+                  <option value="55" selected>MA55</option>
+                </select>
+              </label>
+              <label class="toggle-control">
+                <input id="showMa" type="checkbox" checked />
+                <span class="toggle"></span>
+                <span>MA</span>
+              </label>
+              <label class="toggle-control">
+                <input id="showBoll" type="checkbox" checked />
+                <span class="toggle"></span>
+                <span>BOLL</span>
+              </label>
+              <label class="toggle-control">
+                <input id="showMacd" type="checkbox" checked />
+                <span class="toggle"></span>
+                <span>MACD</span>
+              </label>
+              <label class="toggle-control">
+                <input id="allPatterns" type="checkbox" />
+                <span class="toggle"></span>
+                <span>全部形态</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-legend" id="chartLegend">
+              <span>O <b id="legendOpen">—</b></span>
+              <span>H <b id="legendHigh">—</b></span>
+              <span>L <b id="legendLow">—</b></span>
+              <span>C <b id="legendClose">—</b></span>
+              <span class="legend-ma ma13">MA13 <b id="legendMa13">—</b></span>
+              <span class="legend-ma ma34">MA34 <b id="legendMa34">—</b></span>
+              <span class="legend-ma ma55">MA55 <b id="legendMa55">—</b></span>
+              <span class="legend-boll boll-band">BOLL <b id="legendBollMid">—</b></span>
+            </div>
+            <div class="chart-stack">
+              <div class="chart-pane">
+                <div id="chart" class="chart"></div>
+              </div>
+              <div id="macdPane" class="macd-pane">
+                <div class="macd-legend">
+                  <span>MACD</span>
+                  <span class="macd-dif">DIF <b id="legendMacdDif">—</b></span>
+                  <span class="macd-dea">DEA <b id="legendMacdDea">—</b></span>
+                  <span class="macd-hist">柱 <b id="legendMacdHist">—</b></span>
+                </div>
+                <div id="macdChart" class="chart"></div>
+              </div>
+            </div>
+            <div id="chartLoading" class="chart-loading">
+              <span class="spinner"></span>
+              <p>正在加载行情与 135 信号</p>
+            </div>
+            <div id="chartError" class="chart-error hidden">
+              <strong>行情加载失败</strong>
+              <p id="errorMessage">请稍后重试</p>
+              <button id="retryButton">重新加载</button>
+            </div>
+          </div>
+
+          <div class="insight-grid">
+            <article class="signal-card">
+              <div class="card-label">当前信号</div>
+              <div class="signal-main">
+                <span id="signalBadge" class="signal-badge hold">观察</span>
+                <div>
+                  <strong id="signalTitle">暂无交易信号</strong>
+                  <p id="signalDescription">等待最新一根 K 线收盘确认</p>
+                </div>
+              </div>
+            </article>
+            <article class="stat-card">
+              <div class="card-label">图表信号</div>
+              <strong id="signalCount">—</strong>
+              <p>当前可视范围内的策略买卖点</p>
+            </article>
+            <article class="stat-card">
+              <div class="card-label">数据状态</div>
+              <strong id="lastUpdate">—</strong>
+              <p id="barCount">— 根已完成 K 线</p>
+            </article>
+          </div>
+
+          <section class="signal-log">
+            <div class="section-title">
+              <div><span class="eyebrow">SIGNALS</span><h2>最近信号</h2></div>
+              <div class="signal-key">
+                <span><i class="buy-dot"></i>买入</span>
+                <span><i class="sell-dot"></i>卖出</span>
+              </div>
+            </div>
+            <div id="signalTable" class="signal-table"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

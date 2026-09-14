@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from njm135.core.indicators import add_ma_system, golden_cross, sma
+from njm135.core.indicators import add_bollinger, add_ma_system, add_macd, golden_cross, sma
 from njm135.core.patterns import detect_patterns
 from njm135.core.strategy import StrategyConfig, generate_signals
 from njm135.backtest import analyze
@@ -15,6 +15,18 @@ def test_sma_known_window() -> None:
     assert pd.isna(out.iloc[1])
     assert out.iloc[2] == pytest.approx(2.0)
     assert out.iloc[4] == pytest.approx(4.0)
+
+
+def test_macd_and_bollinger_columns() -> None:
+    close = pd.Series(range(1, 81), dtype=float)
+    bars = pd.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close})
+    macd = add_macd(bars)
+    boll = add_bollinger(bars)
+    assert macd["macd_dif"].notna().sum() > 0
+    assert macd["macd_dea"].notna().sum() > 0
+    assert macd["macd_hist"].notna().sum() > 0
+    last = boll.iloc[-1]
+    assert last["boll_upper"] > last["boll_mid"] > last["boll_lower"]
 
 
 def test_golden_cross() -> None:
@@ -99,6 +111,44 @@ def test_exit_ma_switches_exit_line() -> None:
 
     with pytest.raises(ValueError):
         StrategyConfig(exit_ma=20)
+
+
+def test_top_patterns_can_exit_and_can_be_disabled() -> None:
+    n = 3
+    flags = pd.DataFrame(
+        {
+            "hongxing_chuqiang": [False] * n,
+            "mayi_shangshu": [False] * n,
+            "heike_dianji": [False] * n,
+            "hongyi_xianv": [False] * n,
+            "haidi_laoyue": [False] * n,
+            "junxian_huhuan": [False] * n,
+            "sanxian_tuijin": [False] * n,
+            "meikai_erdu": [False] * n,
+            "zou_sifang": [False] * n,
+            "langzi_huitou": [False] * n,
+            "yi_yang_chuan_sanxian": [False] * n,
+            "yizhi_duxiu": [False, True, False],
+            "dushang_gaolou": [False] * n,
+            "jianhao_jiushou": [False, False, True],
+            "yi_yin_po_sanxian": [False] * n,
+            "yi_jian_chuan_xin": [False] * n,
+            "fendao_yangbiao": [False] * n,
+            "break_ma13": [False] * n,
+            "break_ma34": [False] * n,
+            "break_ma55": [False] * n,
+        }
+    )
+    on = generate_signals(
+        flags,
+        StrategyConfig(exit_yizhi=True, exit_jianhao=True, exit_on_break_ma13=False, exit_yiyin=False, exit_yijian=False, exit_on_fendao=False),
+    )["sell"].tolist()
+    off = generate_signals(
+        flags,
+        StrategyConfig(exit_yizhi=False, exit_dushang=False, exit_jianhao=False, exit_on_break_ma13=False, exit_yiyin=False, exit_yijian=False, exit_on_fendao=False),
+    )["sell"].tolist()
+    assert on == [False, True, True]
+    assert off == [False, False, False]
 
 
 def test_pipeline_backtest_runs() -> None:

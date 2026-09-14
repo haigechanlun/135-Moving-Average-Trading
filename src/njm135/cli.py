@@ -7,7 +7,61 @@ from pathlib import Path
 from njm135.backtest import analyze, plot_analysis
 from njm135.market import fetch_binance_klines, inspect_klines, load_csv, make_demo_bars
 from njm135.market.store import kline_path, save_klines
+from njm135.core.strategy import StrategyConfig
 from njm135.risk.args import add_risk_arguments, risk_from_args, risk_label
+
+
+def add_strategy_arguments(parser: argparse.ArgumentParser, *, exit_ma: int = 55) -> None:
+    parser.add_argument("--exit-ma", type=int, choices=(13, 34, 55), default=exit_ma, help="收盘跌破该均线离场")
+    parser.add_argument(
+        "--top-exits",
+        action="store_true",
+        help="顶部形态参与离场：一枝独秀 / 独上高楼 / 见好就收（默认关）",
+    )
+    parser.add_argument(
+        "--exit-yizhi",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="一枝独秀是否离场；省略则跟随 --top-exits",
+    )
+    parser.add_argument(
+        "--exit-dushang",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="独上高楼是否离场；省略则跟随 --top-exits",
+    )
+    parser.add_argument(
+        "--exit-jianhao",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="见好就收是否离场；省略则跟随 --top-exits",
+    )
+
+
+def strategy_from_args(args: argparse.Namespace) -> StrategyConfig:
+    top = bool(getattr(args, "top_exits", False))
+
+    def _flag(name: str) -> bool:
+        value = getattr(args, name, None)
+        return top if value is None else bool(value)
+
+    return StrategyConfig(
+        exit_ma=args.exit_ma,
+        exit_yizhi=_flag("exit_yizhi"),
+        exit_dushang=_flag("exit_dushang"),
+        exit_jianhao=_flag("exit_jianhao"),
+    )
+
+
+def _strategy_label(cfg: StrategyConfig) -> str:
+    tops = []
+    if cfg.exit_yizhi:
+        tops.append("一枝独秀")
+    if cfg.exit_dushang:
+        tops.append("独上高楼")
+    if cfg.exit_jianhao:
+        tops.append("见好就收")
+    return "  顶部离场:" + ("、".join(tops) if tops else "关")
 
 
 def _cmd_backtest(args: argparse.Namespace) -> None:
@@ -26,18 +80,20 @@ def _cmd_backtest(args: argparse.Namespace) -> None:
         )
         source = f"binance {args.kind} {args.symbol} {args.interval}"
 
-    from njm135.core.strategy import StrategyConfig
-
+    strategy = strategy_from_args(args)
     risk = risk_from_args(args)
     framed, result = analyze(
         bars,
         ma_type=args.ma_type,
-        config=StrategyConfig(exit_ma=args.exit_ma),
+        config=strategy,
         risk=risk,
         initial_cash=args.cash,
         position_pct=args.position_pct,
     )
-    print(f"{source}  仓位{args.position_pct:.0%}  离场线 MA{args.exit_ma}{risk_label(risk)}")
+    print(
+        f"{source}  仓位{args.position_pct:.0%}  离场线 MA{args.exit_ma}"
+        f"{_strategy_label(strategy)}{risk_label(risk)}"
+    )
     print(result.summary())
     if not result.trades.empty:
         print()
@@ -48,7 +104,6 @@ def _cmd_backtest(args: argparse.Namespace) -> None:
 
 
 def _cmd_live(args: argparse.Namespace) -> None:
-    from njm135.core.strategy import StrategyConfig
     from njm135.live.engine import LiveEngine, LiveEngineConfig
     from njm135.live.paper import PaperBroker
 
@@ -60,7 +115,7 @@ def _cmd_live(args: argparse.Namespace) -> None:
         kind=args.kind,
         kline_limit=args.limit,
         ma_type=args.ma_type,
-        strategy=StrategyConfig(exit_ma=args.exit_ma),
+        strategy=strategy_from_args(args),
         risk=risk_from_args(args),
         position_pct=args.position_pct,
         poll_seconds=args.poll,
@@ -110,7 +165,7 @@ def main() -> None:
     bt.add_argument("--ma-type", choices=("sma", "ema"), default="sma")
     bt.add_argument("--cash", type=float, default=10_000.0)
     bt.add_argument("--position-pct", type=float, default=1)
-    bt.add_argument("--exit-ma", type=int, choices=(13, 34, 55), default=55, help="收盘跌破该均线离场")
+    add_strategy_arguments(bt)
     add_risk_arguments(bt)
     bt.add_argument("--plot", type=Path, default=Path("135_backtest.png"))
     bt.set_defaults(func=_cmd_backtest)
@@ -122,7 +177,7 @@ def main() -> None:
     lv.add_argument("--kind", choices=("spot", "futures"), default="futures")
     lv.add_argument("--ma-type", choices=("sma", "ema"), default="sma")
     lv.add_argument("--position-pct", type=float, default=0.3)
-    lv.add_argument("--exit-ma", type=int, choices=(13, 34, 55), default=13, help="收盘跌破该均线离场")
+    add_strategy_arguments(lv, exit_ma=13)
     add_risk_arguments(lv)
     lv.add_argument("--poll", type=float, default=15.0)
     lv.add_argument("--cash", type=float, default=10_000.0, help="dry-run 模拟资金")
